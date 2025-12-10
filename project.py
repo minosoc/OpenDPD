@@ -191,23 +191,6 @@ class Project:
         self.add_arg("device", device)
         return device
 
-    def get_amplitude(IQ_signal):
-        I = IQ_signal[:, 0]
-        Q = IQ_signal[:, 1]
-        power = I ** 2 + Q ** 2
-        amplitude = np.sqrt(power)
-        return amplitude
-
-    def set_target_gain(input_IQ, output_IQ):
-        """Calculate the total energy of the I-Q signal."""
-        amp_in = get_amplitude(input_IQ)
-        amp_out = get_amplitude(output_IQ)
-        max_in_amp = np.max(amp_in)
-        max_out_amp = np.max(amp_out)
-        target_gain = np.mean(max_out_amp / max_in_amp)
-        return target_gain
-
-
     def build_dataloaders(self):
         from modules.data_collector import IQSegmentDataset, IQFrameDataset, load_dataset
 
@@ -218,7 +201,12 @@ class Project:
             X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(dataset_name=self.dataset_name)
 
         # Apply the PA Gain if training DPD
-        self.target_gain = set_target_gain(X_train, y_train)
+        # For DPD training, target should be ideal linear amplification (input * target_gain)
+        # NOT the actual PA output (train_output), because DPD aims to make PA output linear
+        # Calculate target_gain using all data (train + val + test) for better estimation
+        X_all = np.concatenate([X_train, X_val, X_test], axis=0)
+        y_all = np.concatenate([y_train, y_val, y_test], axis=0)
+        self.target_gain = set_target_gain(X_all, y_all)
         if self.step == 'train_dpd':
             y_train = self.target_gain * X_train
             y_val = self.target_gain * X_val

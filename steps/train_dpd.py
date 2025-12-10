@@ -36,7 +36,10 @@ def main(proj: Project):
     pa_model_id = proj.gen_pa_model_id(n_net_pa_params)
 
     # Load Pretrained PA Model
-    path_pa_model = os.path.join('save', proj.dataset_name, 'train_pa', pa_model_id + '.pt')
+    pa_model_dir = os.path.join('save', proj.dataset_name, 'train_pa')
+    if hasattr(proj.args, 'version') and proj.args.version:
+        pa_model_dir = os.path.join(pa_model_dir, proj.args.version)
+    path_pa_model = os.path.join(pa_model_dir, pa_model_id + '.pt')
     net_pa.load_state_dict(torch.load(path_pa_model))
 
     # Instantiate DPD Model

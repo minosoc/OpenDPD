@@ -65,17 +65,31 @@ class INT_Quantizer(torch.nn.Module):
         return scale, dec_num
 
     def forward(self, x):
-        # scale = self.scale
-        pow2_scale, dec_num = self.round_scale2pow2(self.scale)
-        if dec_num != self.decimal_num:
-            self.update_params(pow2_scale, dec_num)
+        # Optimize for inference: use cached scale if in eval mode and already computed
+        if not self.training:
+            # In eval mode, use cached pow2_scale directly (should be pre-computed)
+            # Fallback to computation only if somehow not cached
+            if self.pow2_scale.item() > 0:
+                pow2_scale = self.pow2_scale
+            else:
+                # This should rarely happen if precompute is called
+                pow2_scale, dec_num = self.round_scale2pow2(self.scale)
+                self.update_params(pow2_scale, dec_num)
+        else:
+            # Training mode: always compute fresh
+            pow2_scale, dec_num = self.round_scale2pow2(self.scale)
+            if dec_num != self.decimal_num:
+                self.update_params(pow2_scale, dec_num)
         
         x = x / pow2_scale
         x = x.clamp(self.Qn, self.Qp)
         
-        # zp = round_pass(self.zp)
-        x_bar = round_pass(x)
-
+        # Optimize round_pass for inference: use simple round in eval mode
+        if not self.training:
+            x_bar = x.round()
+        else:
+            x_bar = round_pass(x)
+        
         x_hat = x_bar * pow2_scale
                 
         return x_hat

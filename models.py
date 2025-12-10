@@ -15,10 +15,10 @@ class CoreModel(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.backbone_type = backbone_type
-        self.thx = thx
-        self.thh = thh
         self.window_size = window_size
         self.num_dvr_units = num_dvr_units
+        self.thx = thx
+        self.thh = thh
         self.batch_first = True  # Force batch first
         self.bidirectional = False
         self.bias = True

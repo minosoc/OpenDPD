@@ -43,6 +43,15 @@ class GRU(nn.Module):
                 nn.init.constant_(param, 0)
 
     def forward(self, x, h_0):
+
+
+
+
+
+
+
+
+
         out, _ = self.rnn(x, h_0)
         out = self.fc_out(out)
         return out

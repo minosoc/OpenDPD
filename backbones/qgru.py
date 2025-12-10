@@ -25,12 +25,9 @@ class QGRU(nn.Module):
                           bidirectional=self.bidirectional,
                           batch_first=self.batch_first,
                           bias=self.bias)
-
-        
         self.fc_out = nn.Linear(in_features=hidden_size,
                                 out_features=self.output_size,
                                 bias=self.bias)
-
         
     def reset_parameters(self):
         for name, param in self.rnn.named_parameters():
@@ -47,12 +44,6 @@ class QGRU(nn.Module):
         for name, param in self.fc_out.named_parameters():
             if 'weight' in name:
                 nn.init.xavier_uniform_(param)
-            if 'bias' in name:
-                nn.init.constant_(param, 0)
-
-        for name, param in self.fc_hid.named_parameters():
-            if 'weight' in name:
-                nn.init.kaiming_uniform_(param)
             if 'bias' in name:
                 nn.init.constant_(param, 0)
 

@@ -145,8 +145,8 @@ def ACLR(prediction, fs=800e6, nperseg=2560, bw_main_ch=200e6, n_sub_ch=10):
     # Compute ACLR for left and right adjacent channels
     left_side_ch_power = np.sum(psd[index_left - sub_ch_index_len:index_left])
     aclr_left = np.mean(10 * np.log10(left_side_ch_power / max_sub_ch_power))
-    right_side_channel_power = np.sum(psd[index_right:index_right + sub_ch_index_len])
-    aclr_right = np.mean(10 * np.log10(right_side_channel_power / max_sub_ch_power))
+    right_side_ch_power = np.sum(psd[index_right:index_right + sub_ch_index_len])
+    aclr_right = np.mean(10 * np.log10(right_side_ch_power / max_sub_ch_power))
 
     return aclr_left, aclr_right
 

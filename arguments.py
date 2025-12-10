@@ -9,10 +9,11 @@ def get_arguments():
     # Process Arguments
     parser = argparse.ArgumentParser(description='Train a GRU network.')
     # Dataset & Log
-    parser.add_argument('--dataset_name', default=None, help='Dataset names')
+    parser.add_argument('--dataset_name', default='DPA_200MHz', help='Dataset names')
     parser.add_argument('--dataset_path', default=None, help='Path to custom dataset (CSV file or directory)')
     parser.add_argument('--filename', default='', help='Filename to save model and log to.')
     parser.add_argument('--log_precision', default=8, type=int, help='Number of decimals in the log files.')
+    parser.add_argument('--version', default='', help='Version label for organizing saved models and logs')
     # Training Process
     parser.add_argument('--step', default='run_dpd', help='Step to run.')
     parser.add_argument('--eval_val', default=1, type=int, help='Whether evaluate val set during training.')
@@ -31,7 +32,7 @@ def get_arguments():
     parser.add_argument('--opt_type', default='adamw', choices=['sgd', 'adam', 'adamw', 'adabound', 'rmsprop'], help='Type of optimizer.')
     parser.add_argument('--batch_size', default=256, type=int, help='Batch size for training.')
     parser.add_argument('--batch_size_eval', default=256, type=int, help='Batch size for evaluation.')
-    parser.add_argument('--n_epochs', default=100, type=int, help='Number of epochs to train for.')
+    parser.add_argument('--n_epochs', default=50, type=int, help='Number of epochs to train for.')
     parser.add_argument('--lr_schedule', default=0, type=int, help='Whether enable learning rate scheduling')
     parser.add_argument('--lr', default=5e-4, type=float, help='Learning rate')
     parser.add_argument('--lr_end', default=1e-4, type=float, help='Learning rate')

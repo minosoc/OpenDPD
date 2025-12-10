@@ -59,6 +59,7 @@ def recur_rpls_layers(args, model, layer_type=nn.Conv2d,
             setattr(model, name, rpls_layer_type(module, weight_quantizer, act_quantizer))
         else:
             recur_rpls_layers(args, module, layer_type, rpls_layer_type, weight_quantizer, act_quantizer)
+        print("++++++\nmodel: ", model)
 
 def create_op_quantizer(type, n_bits, all_positive):
     quantizer_types = ['OP_INT_Quantizer', 'Identity_Quantizer', 'Drf_Act_Quantizer', 'IAO_Quantizer', 'FP8_Quantizer']
@@ -72,20 +73,20 @@ def create_op_quantizer(type, n_bits, all_positive):
     return quantizer
 
 def recur_rpls_ops(args, model, op_type, rpls_op_type, *quantizers):
-    """ Recursively replace layers of a given type with another type within a model.
+    """ Recursively replace operations of a given type with another type within a model.
     Args:
         model: the model to be searched.
-        layer_type: the type of the layer to be replaced.
-        rpls_layer_type: the type of the layer to be replaced with.
+        op_type: the type of the operation to be replaced.
+        rpls_op_type: the type of the operation to be replaced with.
     Returns:
-        A list of layers of the given type.
+        A list of operations of the given type.
     """
     sigmoid_quantizer, tanh_quantizer, mult_quantizer, add_quantizer, \
     sqrt_quantizer, pow_quantizer = quantizers
     
     for name, module in model.named_children():        
         if isinstance(module, op_type):
-            # print('Replace {} with {}'.format(op_type, rpls_op_type))
+            print('Replace {} with {}'.format(op_type, rpls_op_type))
             if isinstance(module, torch.nn.Sigmoid):
                 sigmoid_quantizer = create_op_quantizer(sigmoid_quantizer.__class__.__name__, sigmoid_quantizer.bits, sigmoid_quantizer.all_positive)
                 setattr(model, name, rpls_op_type(sigmoid_quantizer))
@@ -106,7 +107,7 @@ def recur_rpls_ops(args, model, op_type, rpls_op_type, *quantizers):
                 setattr(model, name, rpls_op_type(module, pow_quantizer))
             else:
                 raise NotImplementedError('Operation type {} is not implemented.'.format(op_type))
-            # print("model: ", model)
+            print("model: ", model)
         else:
             recur_rpls_ops(args, module, op_type, rpls_op_type, *quantizers)
 
@@ -120,12 +121,34 @@ def recur_rpls_gru(model):
     """
     for name, module in model.named_children():
         if isinstance(module, nn.GRU):
-            setattr(model, name, PYGRU(input_size = module.input_size,
-                                       hidden_size = module.hidden_size,
-                                       num_layers = module.num_layers,
-                                       batch_first = module.batch_first,
-                                       bias=module.bias is not None)
-                    )
+            # Create new PYGRU with same configuration
+            new_gru = PYGRU(input_size = module.input_size,
+                           hidden_size = module.hidden_size,
+                           num_layers = module.num_layers,
+                           batch_first = module.batch_first,
+                           bias=module.bias is not None)
+            
+            # Copy weights from standard GRU to custom PYGRU
+            # PyTorch GRU: weight_ih_l{layer}, weight_hh_l{layer}, bias_ih_l{layer}, bias_hh_l{layer}
+            # Custom PYGRU: rnn_cell_list.{layer}.x2h.weight/bias, rnn_cell_list.{layer}.h2h.weight/bias
+            state_dict = module.state_dict()
+            for layer_idx in range(module.num_layers):
+                # Map weights
+                weight_ih_key = f'weight_ih_l{layer_idx}'
+                weight_hh_key = f'weight_hh_l{layer_idx}'
+                bias_ih_key = f'bias_ih_l{layer_idx}'
+                bias_hh_key = f'bias_hh_l{layer_idx}'
+                
+                if weight_ih_key in state_dict:
+                    new_gru.rnn_cell_list[layer_idx].x2h.weight.data.copy_(state_dict[weight_ih_key])
+                if weight_hh_key in state_dict:
+                    new_gru.rnn_cell_list[layer_idx].h2h.weight.data.copy_(state_dict[weight_hh_key])
+                if bias_ih_key in state_dict:
+                    new_gru.rnn_cell_list[layer_idx].x2h.bias.data.copy_(state_dict[bias_ih_key])
+                if bias_hh_key in state_dict:
+                    new_gru.rnn_cell_list[layer_idx].h2h.bias.data.copy_(state_dict[bias_hh_key])
+            
+            setattr(model, name, new_gru)
         else:
             recur_rpls_gru(module)
 
@@ -164,8 +187,9 @@ class Base_GRUQuantEnv(object):
         self.sqrt_quantizer, self.pow_quantizer        = self.set_quantizer()
 
         # float model
-        self.pygru_model = self.create_pygru_model(copy.deepcopy(self.model))
-        self.pygru_model = self.load_model(self.pygru_model)
+        temp_model = copy.deepcopy(self.model)
+        temp_model = self.load_model(temp_model)  # Load pretrained weights first
+        self.pygru_model = self.create_pygru_model(temp_model)  # Then convert GRU to PYGRU
         
         # quantized model
         self.q_model = self.create_quantized_model(copy.deepcopy(self.pygru_model))
@@ -239,11 +263,15 @@ class Base_GRUQuantEnv(object):
                 else:
                     _reset_pygru(module)
         
-        # replace GRU module with pytorch GRU module
+        # replace GRU module with pytorch GRU module (weights are copied inside recur_rpls_gru)
         recur_rpls_gru(model)
         
-        # reset parameters
-        _reset_pygru(model)
+        # reset parameters only if no pretrained model is used
+        pretrained_model = self.args.pretrained_model
+        use_pretrained = bool(pretrained_model)
+        if not use_pretrained:
+            print("::: No pretrained model, resetting PYGRU parameters.")
+            _reset_pygru(model)
  
         return model
 
@@ -291,11 +319,13 @@ class Base_GRUQuantEnv(object):
             A quantized pygru model.
         """
 
+        print("Start replacing operations...")
         for op_type, rpls_op_type in self.fq_ops_hash.items():
             recur_rpls_ops(self.args, model, op_type, rpls_op_type, \
                 self.sigmod_quantizer, self.tanh_quantizer, self.mult_quantizer, self.add_quantizer, \
                 self.sqrt_quantizer, self.pow_quantizer)
         
+        print("Start replacing layers...")
         for layer_type, rpls_layer_type in self.fq_layers_hash.items():
             recur_rpls_layers(self.args, model, layer_type, rpls_layer_type, self.weight_quantizer, self.act_quantizer)
         

@@ -73,15 +73,41 @@ def gen_log_stat(args: argparse.Namespace, elapsed_time, net, optimizer, epoch, 
 
 
 def gen_dir_paths(args: argparse.Namespace):
+    # Include version in path if provided
+    version_path = args.version if hasattr(args, 'version') and args.version else ''
+    
     if args.step == 'train_pa':
-        path_dir_save = os.path.join('./save', args.dataset_name, args.step, args.quant_dir_label)
-        path_dir_log_hist = os.path.join('./log', args.dataset_name, args.step, args.quant_dir_label, 'history')
-        path_dir_log_best = os.path.join('./log', args.dataset_name, args.step, args.quant_dir_label, 'best')
-    elif args.step == 'train_dpd' or 'run_dpd':
+        base_path = os.path.join('./save', args.dataset_name, args.step)
+        if version_path:
+            base_path = os.path.join(base_path, version_path)
+        if args.quant_dir_label:
+            base_path = os.path.join(base_path, args.quant_dir_label)
+        path_dir_save = base_path
+        
+        log_base = os.path.join('./log', args.dataset_name, args.step)
+        if version_path:
+            log_base = os.path.join(log_base, version_path)
+        if args.quant_dir_label:
+            log_base = os.path.join(log_base, args.quant_dir_label)
+        path_dir_log_hist = os.path.join(log_base, 'history')
+        path_dir_log_best = os.path.join(log_base, 'best')
+    elif args.step == 'train_dpd' or args.step == 'run_dpd':
         # Organize DPD files under PA model directory
-        path_dir_save = os.path.join('./save', args.dataset_name, args.step, gen_pa_model_id(args), args.quant_dir_label)
-        path_dir_log_hist = os.path.join('./log', args.dataset_name, args.step, gen_pa_model_id(args), args.quant_dir_label, 'history')
-        path_dir_log_best = os.path.join('./log', args.dataset_name, args.step, gen_pa_model_id(args),args.quant_dir_label, 'best')
+        pa_model_id = gen_pa_model_id(args)
+        base_path = os.path.join('./save', args.dataset_name, args.step, pa_model_id)
+        if version_path:
+            base_path = os.path.join(base_path, version_path)
+        if args.quant_dir_label:
+            base_path = os.path.join(base_path, args.quant_dir_label)
+        path_dir_save = base_path
+        
+        log_base = os.path.join('./log', args.dataset_name, args.step, pa_model_id)
+        if version_path:
+            log_base = os.path.join(log_base, version_path)
+        if args.quant_dir_label:
+            log_base = os.path.join(log_base, args.quant_dir_label)
+        path_dir_log_hist = os.path.join(log_base, 'history')
+        path_dir_log_best = os.path.join(log_base, 'best')
     dir_paths = (path_dir_save, path_dir_log_hist, path_dir_log_best)
     return dir_paths
 
