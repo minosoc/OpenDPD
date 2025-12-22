@@ -6,6 +6,7 @@ import json
 import os
 import random as rnd
 import time
+import types
 import numpy as np
 import torch
 import torch.nn as nn
@@ -18,6 +19,16 @@ from modules.train_funcs import net_train, net_eval, calculate_metrics
 from utils import util
 from modules.loggers import PandasLogger
 from utils.util import set_target_gain
+
+
+def dict_to_namespace(d):
+    """Recursively convert a dictionary to SimpleNamespace"""
+    if isinstance(d, dict):
+        return types.SimpleNamespace(**{k: dict_to_namespace(v) for k, v in d.items()})
+    elif isinstance(d, list):
+        return [dict_to_namespace(item) for item in d]
+    else:
+        return d
 
 
 class Project:
@@ -51,16 +62,22 @@ class Project:
         ###########################################################################################################
         # Create Folders
         dir_paths = gen_dir_paths(self.args)
-        self.path_dir_save, self.path_dir_log_hist, self.path_dir_log_best = dir_paths
-        create_folder([self.path_dir_save, self.path_dir_log_hist, self.path_dir_log_best])
+        self.path_dir_save, self.path_dir_log, self.path_dir_terminal_log = dir_paths
+        create_folder([self.path_dir_save, self.path_dir_log, self.path_dir_terminal_log])
 
     def gen_pa_model_id(self, n_net_params):
-        dict_pa = {'S': f"{self.seed}",
-                   'M': self.PA_backbone.upper(),
-                   'H': f"{self.PA_hidden_size:d}",
-                   'F': f"{self.frame_length:d}",
-                   'P': f"{n_net_params:d}"
-                   }
+        dict_pa = { 'S': f"{self.seed}",
+                    'M': self.PA_backbone.upper(),
+                    }
+        if 'transformer' in self.PA_backbone:
+            dict_pa['D'] = f"{self.d_model:d}"
+            dict_pa['H'] = f"{self.n_heads:d}"
+            dict_pa['L'] = f"{self.PA_num_layers:d}"
+            dict_pa['P'] = f"{n_net_params:d}"
+        else:
+            dict_pa['H'] = f"{self.PA_hidden_size:d}"
+            dict_pa['L'] = f"{self.PA_num_layers:d}"
+            dict_pa['P'] = f"{n_net_params:d}"
         dict_pamodel_id = dict(list(dict_pa.items()))
 
         # PA Model ID
@@ -74,10 +91,17 @@ class Project:
     def gen_dpd_model_id(self, n_net_params):
         dict_dpd = {'S': f"{self.seed}",
                     'M': self.DPD_backbone.upper(),
-                    'H': f"{self.DPD_hidden_size:d}",
-                    'F': f"{self.frame_length:d}",
-                    'P': f"{n_net_params:d}"
+                    'H': f"{self.gen_dpd_model_id:d}"
                     }
+        if 'transformer' in self.DPD_backbone:
+            dict_dpd['D'] = f"{self.d_model:d}"
+            dict_dpd['H'] = f"{self.n_heads:d}"
+            dict_dpd['L'] = f"{self.DPD_num_layers:d}"
+            dict_dpd['P'] = f"{n_net_params:d}"
+        else:
+            dict_dpd['H'] = f"{self.DPD_hidden_size:d}"
+            dict_dpd['L'] = f"{self.DPD_num_layers:d}"
+            dict_dpd['P'] = f"{n_net_params:d}"
         if 'delta' in self.DPD_backbone:
             dict_dpd['THX'] = f"{self.thx:.3f}"
             dict_dpd['THH'] = f"{self.thh:.3f}"
@@ -93,17 +117,19 @@ class Project:
 
     def build_logger(self, model_id: str):
         # Get Save and Log Paths
-        file_paths = gen_file_paths(self.path_dir_save, self.path_dir_log_hist, self.path_dir_log_best, model_id)
-        self.path_save_file_best, self.path_log_file_hist, self.path_log_file_best = file_paths
-        print("::: Best Model Save Path: ", self.path_save_file_best)
-        print("::: Log-History     Path: ", self.path_log_file_hist)
-        print("::: Log-Best        Path: ", self.path_log_file_best)
-
+        file_paths = gen_file_paths(self.path_dir_save, self.path_dir_log, self.path_dir_terminal_log, model_id, self.args.step)
+        self.path_file_save_best, self.path_file_log_hist, self.path_file_log_best, self.path_file_terminal_log = file_paths
+        print("::: Best Model Save Path: ", self.path_file_save_best)
+        print("::: Log-History     Path: ", self.path_file_log_hist)
+        print("::: Log-Best        Path: ", self.path_file_log_best)
+        print("::: Terminal Log    Path: ", self.path_file_terminal_log)
+        
         # Instantiate Logger for Recording Training Statistics
-        self.logger = PandasLogger(path_save_file_best=self.path_save_file_best,
-                                   path_log_file_best=self.path_log_file_best,
-                                   path_log_file_hist=self.path_log_file_hist,
-                                   precision=self.log_precision)
+        self.logger = PandasLogger(path_file_save_best=self.path_file_save_best,
+                                    path_file_log_hist=self.path_file_log_hist,
+                                    path_file_log_best=self.path_file_log_best,
+                                    path_file_terminal_log=self.path_file_terminal_log,
+                                    precision=self.log_precision)
 
     def reproducible(self):
         rnd.seed(self.seed)
@@ -161,6 +187,7 @@ class Project:
             raise FileNotFoundError(f"spec.json not found for dataset: {self.dataset_name}")
         
         if spec:
+            self.spec = dict_to_namespace(spec)
             for k, v in spec.items():
                 setattr(self, k, v)
                 self.hparams[k] = v
@@ -173,7 +200,7 @@ class Project:
     def set_device(self):
         # Find Available GPUs
         if self.accelerator == 'cuda' and torch.cuda.is_available():
-            idx_gpu = self.devices
+            idx_gpu = self.args.devices
             name_gpu = torch.cuda.get_device_name(idx_gpu)
             device = torch.device("cuda:" + str(idx_gpu))
             torch.cuda.set_device(device)
@@ -196,21 +223,22 @@ class Project:
 
         # Load Dataset
         if hasattr(self, 'dataset_path') and self.dataset_path:
-            X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(dataset_path=self.dataset_path)
+            X_train, y_train, X_val, y_val = load_dataset(dataset_path=self.dataset_path)
         else:
-            X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(dataset_name=self.dataset_name)
+            X_train, y_train, X_val, y_val = load_dataset(dataset_name=self.dataset_name)
 
         # Apply the PA Gain if training DPD
         # For DPD training, target should be ideal linear amplification (input * target_gain)
         # NOT the actual PA output (train_output), because DPD aims to make PA output linear
         # Calculate target_gain using all data (train + val + test) for better estimation
-        X_all = np.concatenate([X_train, X_val, X_test], axis=0)
-        y_all = np.concatenate([y_train, y_val, y_test], axis=0)
-        self.target_gain = set_target_gain(X_all, y_all)
-        if self.step == 'train_dpd':
-            y_train = self.target_gain * X_train
+        # X_all = np.concatenate([X_train, X_val, X_test], axis=0)
+        # y_all = np.concatenate([y_train, y_val, y_test], axis=0)
+        self.target_gain = getattr(self.spec, 'gain', None)
+        if self.target_gain is None:
+            raise ValueError("'gain' is required in spec.json but not found. Please add 'gain' to your spec.json file.")
+        if self.args.step == 'train_dpd':
+            y_train = self.target_gain * X_train        # G * x (ideal)
             y_val = self.target_gain * X_val
-            y_test = self.target_gain * X_test
 
         # Extract Features
         input_size = X_train.shape[-1]
@@ -218,39 +246,37 @@ class Project:
         # Define PyTorch Datasets
         train_set = IQFrameDataset(X_train, y_train, frame_length=self.frame_length, stride=self.frame_stride)
         val_set = IQSegmentDataset(X_val, y_val, nperseg=self.args.nperseg)
-        test_set = IQSegmentDataset(X_test, y_test, nperseg=self.args.nperseg)
 
         # Define PyTorch Dataloaders
         train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True)
         val_loader = DataLoader(val_set, batch_size=self.batch_size_eval, shuffle=False)
-        test_loader = DataLoader(test_set, batch_size=self.batch_size_eval, shuffle=False)
 
-        return (train_loader, val_loader, test_loader), input_size
+        return (train_loader, val_loader), input_size
 
-    def build_model(self):
-        # Load Pretrained Model if Running Retrain
-        if self.step == 'retrain':
-            net = self.net_retrain.Model(self)  # Instantiate Retrain Model
-            if self.path_net_pretrain is None:
-                print('::: Loading pretrained model: ', self.default_path_net_pretrain)
-                # net = util.load_model(self, net, self.default_path_net_pretrain)
-                net.load_pretrain_model(self.default_path_net_pretrain)
-            else:
-                print('::: Loading pretrained model: ', self.path_net_pretrain)
-                net = util.load_model(self, net, self.path_net_pretrain)
-        else:
-            net = self.net_pretrain.Model(self)  # Instantiate Pretrain Model
+    # def build_model(self):
+    #     # Load Pretrained Model if Running Retrain
+    #     if self.step == 'retrain':
+    #         net = self.net_retrain.Model(self)  # Instantiate Retrain Model
+    #         if self.path_net_pretrain is None:
+    #             print('::: Loading pretrained model: ', self.default_path_net_pretrain)
+    #             # net = util.load_model(self, net, self.default_path_net_pretrain)
+    #             net.load_pretrain_model(self.default_path_net_pretrain)
+    #         else:
+    #             print('::: Loading pretrained model: ', self.path_net_pretrain)
+    #             net = util.load_model(self, net, self.path_net_pretrain)
+    #     else:
+    #         net = self.net_pretrain.Model(self)  # Instantiate Pretrain Model
 
-        # Cast net to the target device
-        net.to(self.device)
-        self.add_arg("net", net)
+    #     # Cast net to the target device
+    #     net.to(self.device)
+    #     self.add_arg("net", net)
 
-        return net
+    #     return net
 
     def build_criterion(self):
         dict_loss = {'l2': nn.MSELoss(),
-                     'l1': nn.L1Loss()
-                     }
+                    'l1': nn.L1Loss()
+                    }
         loss_func_name = self.loss_type
         try:
             criterion = dict_loss[loss_func_name]
@@ -284,45 +310,40 @@ class Project:
                                                             min_lr=self.lr_end)
         return optimizer, lr_scheduler
 
-    def train(self, net: nn.Module, criterion: Callable, optimizer: optim.Optimizer, lr_scheduler,
-              train_loader: DataLoader, val_loader: DataLoader, test_loader: DataLoader, best_model_metric: str) -> None:
+    def train(  self,
+                net: nn.Module,
+                criterion: Callable,
+                optimizer: optim.Optimizer,
+                lr_scheduler,
+                train_loader: DataLoader,
+                val_loader: DataLoader,
+                best_model_metric: str) -> None:
         # Timer
         start_time = time.time()
         # Epoch loop
         print("Starting training...")
-        for epoch in range(self.n_epochs):
+        for epoch in range(self.args.n_epochs):
             # -----------
             # Train
             # -----------
             net = net_train(log=self.log_train,
                             net=net,
-                            optimizer=optimizer,
                             criterion=criterion,
+                            optimizer=optimizer,
                             dataloader=train_loader,
-                            grad_clip_val=self.grad_clip_val,
+                            grad_clip_val=self.args.grad_clip_val,
                             device=self.device)
 
             # -----------
             # Validation
             # -----------
-            if self.eval_val:
+            if self.args.eval_val:
                 _, prediction, ground_truth = net_eval(log=self.log_val,
-                                                       net=net,
-                                                       criterion=criterion,
-                                                       dataloader=val_loader,
-                                                       device=self.device)
-                self.log_val = calculate_metrics(self.args, self.log_val, prediction, ground_truth)
-
-            # -----------
-            # Test
-            # -----------
-            if self.eval_test:
-                _, prediction, ground_truth = net_eval(log=self.log_test,
-                                                       net=net,
-                                                       criterion=criterion,
-                                                       dataloader=test_loader,
-                                                       device=self.device)
-                self.log_test = calculate_metrics(self.args, self.log_test, prediction, ground_truth)
+                                                        net=net,
+                                                        criterion=criterion,
+                                                        dataloader=val_loader,
+                                                        device=self.device)
+                self.log_val = calculate_metrics(self.spec, self.log_val, prediction, ground_truth)
 
             ###########################################################################################################
             # Logging & Saving
@@ -331,14 +352,13 @@ class Project:
             # Generate Log Dict
             end_time = time.time()
             elapsed_time_minutes = (end_time - start_time) / 60.0
-            self.log_all = gen_log_stat(self.args, elapsed_time_minutes, net, optimizer, epoch, self.log_train,
-                                        self.log_val, self.log_test)
+            self.log_all = gen_log_stat(self.args, elapsed_time_minutes, net, optimizer, epoch, self.log_train, self.log_val)
 
             # Write Log
             self.logger.write_log(self.log_all)
 
             # Save best model
-            best_net = net.dpd_model if self.step == 'train_dpd' else net
+            best_net = net.dpd_model if self.args.step == 'train_dpd' else net
             self.logger.save_best_model(net=best_net, epoch=epoch, val_stat=self.log_val, metric_name=best_model_metric)
 
             ###########################################################################################################
@@ -346,7 +366,7 @@ class Project:
             ###########################################################################################################
             # Schedule at the beginning of retrain
             lr_scheduler_criteria = self.log_val[best_model_metric]
-            if self.lr_schedule:
+            if self.args.lr_schedule:
                 lr_scheduler.step(lr_scheduler_criteria)
 
         print("Training Completed...")

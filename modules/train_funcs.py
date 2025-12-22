@@ -3,6 +3,7 @@ __license__ = "Apache-2.0 License"
 __email__ = "yizhuo.wu@tudelft.nl, chang.gao@tudelft.nl"
 
 import numpy as np
+import types
 import torch
 import torch.nn as nn
 from torch.optim.optimizer import Optimizer
@@ -14,12 +15,12 @@ import argparse
 
 
 def net_train(log: Dict[str, Any],
-              net: nn.Module,
-              dataloader: DataLoader,
-              optimizer: Optimizer,
-              criterion: Callable,
-              grad_clip_val: float,
-              device: torch.device):
+                net: nn.Module,
+                criterion: Callable,
+                optimizer: Optimizer,
+                dataloader: DataLoader,
+                grad_clip_val: float,
+                device: torch.device):
     # Set Network to Training Mode
     net = net.train()
     # Statistics
@@ -55,10 +56,10 @@ def net_train(log: Dict[str, Any],
 
 
 def net_eval(log: Dict,
-             net: nn.Module,
-             dataloader: DataLoader,
-             criterion: Callable,
-             device: torch.device):
+            net: nn.Module,
+            criterion: Callable,
+            dataloader: DataLoader,
+            device: torch.device):
     net = net.eval()
     with torch.no_grad():
         # Statistics
@@ -71,35 +72,37 @@ def net_eval(log: Dict,
             features = features.to(device)
             targets = targets.to(device)
             # Forward Propagation
-            outputs = net(features)
+            out = net(features)
             # Calculate loss function
-            loss = criterion(outputs, targets)
+            loss = criterion(out, targets)
             # Collect prediction and ground truth for metric calculation
-            prediction.append(outputs.cpu())
+            prediction.append(out.cpu())
             ground_truth.append(targets.cpu())
             # Collect losses to calculate the average loss per epoch
             losses.append(loss.item())
-    # Average loss per epoch
-    avg_loss = np.mean(losses)
+    # Average loss
+    loss = np.mean(losses)
     # Prediction and Ground Truth
     prediction = torch.cat(prediction, dim=0).numpy()
     ground_truth = torch.cat(ground_truth, dim=0).numpy()
     # Save Statistics
-    log['loss'] = avg_loss
+    log['loss'] = loss
     # End of Evaluation Epoch
     return net, prediction, ground_truth
 
 
-def calculate_metrics(args: argparse.Namespace, stat: Dict[str, Any], prediction: np.ndarray, ground_truth: np.ndarray):
-    stat['NMSE'] = metrics.NMSE(prediction, ground_truth)
-    stat['EVM'] = metrics.EVM(prediction, ground_truth, bw_main_ch=args.bw_main_ch, n_sub_ch=args.n_sub_ch, nperseg=args.nperseg)
+def calculate_metrics(  spec: types.SimpleNamespace,
+                        log: Dict[str, Any],
+                        prediction: np.ndarray,
+                        ground_truth: np.ndarray):
+    log['NMSE'] = metrics.NMSE(prediction, ground_truth)
+    log['EVM'] = metrics.EVM(prediction, ground_truth, sample_rate=spec.input_signal_fs, bw_main_ch=spec.bw_main_ch, n_sub_ch=spec.n_sub_ch, nperseg=spec.nperseg)
     ACLR_L = []
     ACLR_R = []
-    ACLR_left, ACLR_right = metrics.ACLR(prediction, fs=args.input_signal_fs, nperseg=args.nperseg,
-                                         bw_main_ch=args.bw_main_ch, n_sub_ch=args.n_sub_ch)
+    ACLR_left, ACLR_right = metrics.ACLR(prediction, sample_rate=spec.input_signal_fs, bw_main_ch=spec.bw_main_ch, n_sub_ch=spec.n_sub_ch, nperseg=spec.nperseg)
     ACLR_L.append(ACLR_left)
     ACLR_R.append(ACLR_right)
-    stat['ACLR_L'] = np.mean(ACLR_L)
-    stat['ACLR_R'] = np.mean(ACLR_R)
-    stat['ACLR_AVG'] = (stat['ACLR_L'] + stat['ACLR_R']) / 2
-    return stat
+    log['ACLR_L'] = np.mean(ACLR_L)
+    log['ACLR_R'] = np.mean(ACLR_R)
+    log['ACLR_AVG'] = (log['ACLR_L'] + log['ACLR_R']) / 2
+    return log

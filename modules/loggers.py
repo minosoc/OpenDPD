@@ -11,25 +11,13 @@ from rich.columns import Columns
 
 
 class PandasLogger:
-    def __init__(self, path_save_file_best: str, path_log_file_hist: str, path_log_file_best: str, precision: int = 8):
-        self.path_save_file_best = path_save_file_best
-        self.path_log_file_hist = path_log_file_hist
-        self.path_log_file_best = path_log_file_best
-        self.list_log_headers = []
-        self.list_log_rows = []
+    def __init__(self, path_file_save_best: str, path_file_log_hist: str, path_file_log_best: str, path_file_terminal_log: str, precision: int = 8):
+        self.path_file_save_best = path_file_save_best
+        self.path_file_log_hist = path_file_log_hist
+        self.path_file_log_best = path_file_log_best
+        self.path_file_terminal_log = path_file_terminal_log
         self.precision = precision
-        self.best_val_metric = None
         self.console = Console()
-
-    def add_row(self, list_header, list_value):
-        self.list_log_headers = list_header
-        row = {}
-        for header, value in zip(list_header, list_value):
-            row[header] = value
-        self.list_log_rows.append(row)
-        
-        # Create a rich table instead of just printing the row
-        self._display_stats_table(row)
 
     def _display_stats_table(self, stats):
         # Create two tables - one for general info and one for metrics
@@ -47,7 +35,7 @@ class PandasLogger:
         general_metrics = []
         train_metrics = []
         val_metrics = []
-        test_metrics = []
+        test_metrics = []                           # test 관련 제거! (성능 평가 없음)
         
         # First pass - categorize metrics
         for key in stats.keys():
@@ -166,14 +154,14 @@ class PandasLogger:
         best_criteria = val_stat[metric_name]
         if epoch == 0:
             best_epoch = epoch
-            self.write_log_idx(best_epoch, self.path_log_file_best)
-            torch.save(net.state_dict(), self.path_save_file_best)
-            self.console.print(f'[bold green]>>> saving best model ({self.best_val_metric} -> {best_criteria} {metric_name}) from epoch {epoch} to {self.path_save_file_best}[/bold green]')
+            self.write_log_idx(best_epoch, self.path_file_log_best)
+            torch.save(net.state_dict(), self.path_file_save_best)
+            self.console.print(f'[bold green]>>> saving best model ({self.best_val_metric} -> {best_criteria} {metric_name}) from epoch {epoch} to {self.path_file_save_best}[/bold green]')
             self.best_val_metric = best_criteria
         if best_criteria < self.best_val_metric:
             best_epoch = epoch
             # Record the best epoch
-            self.write_log_idx(best_epoch, self.path_log_file_best)
-            torch.save(net.state_dict(), self.path_save_file_best)
-            self.console.print(f'[bold green]>>> saving best model ({self.best_val_metric} -> {best_criteria} {metric_name}) from epoch {epoch} to {self.path_save_file_best}[/bold green]')
+            self.write_log_idx(best_epoch, self.path_file_log_best)
+            torch.save(net.state_dict(), self.path_file_save_best)
+            self.console.print(f'[bold green]>>> saving best model ({self.best_val_metric} -> {best_criteria} {metric_name}) from epoch {epoch} to {self.path_file_save_best}[/bold green]')
             self.best_val_metric = best_criteria

@@ -7,23 +7,23 @@ import numpy as np
 
 
 def magnitude_spectrum(input_signal: Union[np.ndarray, np.complex128],
-                       sample_rate: int,
-                       nfft: int,
-                       shift: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+                        sample_rate: int,
+                        nfft: int,
+                        shift: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the Fast Fourier Transform (FFT) of the input signal.
 
     Parameters:
     - input_signal (np.ndarray[np.complex128]): A 2D numpy array where the first dimension
-                                               represents batch size and the second dimension
-                                               represents the time sequence of complex numbers.
+                                                represents batch size and the second dimension
+                                                represents the time sequence of complex numbers.
     - sample_rate (int): The rate at which the input signal was sampled.
     - shift (bool, optional): Whether or not to shift the zero-frequency component to
-                              the center of the spectrum. Defaults to False.
+                                the center of the spectrum. Defaults to False.
 
     Returns:
     - Tuple[np.ndarray, np.ndarray]: A tuple where the first element is the frequency components
-                                     and the second element is the FFT of the input signal for each batch.
+                                    and the second element is the FFT of the input signal for each batch.
     """
 
     # Compute the FFT of the input signal along the last axis (time sequence dimension)
@@ -70,11 +70,9 @@ def EVM(prediction, ground_truth, sample_rate=int(800e6), bw_main_ch=200e6, n_su
 
     # Convert to Complex Array
     prediction_complex = prediction[..., 0] + 1j * prediction[..., 1]
-    freq, spectrum_prediction = magnitude_spectrum(prediction_complex, sample_rate=sample_rate, nfft=nperseg,
-                                                   shift=True)
+    freq, spectrum_prediction = magnitude_spectrum(prediction_complex, sample_rate=sample_rate, nfft=nperseg, shift=True)
     ground_truth_complex = ground_truth[..., 0] + 1j * ground_truth[..., 1]
-    freq, spectrum_ground_truth = magnitude_spectrum(ground_truth_complex, sample_rate=sample_rate, nfft=nperseg,
-                                                     shift=True)
+    freq, spectrum_ground_truth = magnitude_spectrum(ground_truth_complex, sample_rate=sample_rate, nfft=nperseg, shift=True)
 
     # Determine the indices for the main channel
     index_left = np.min(np.where(freq >= -bw_main_ch / 2))
@@ -108,25 +106,26 @@ def EVM(prediction, ground_truth, sample_rate=int(800e6), bw_main_ch=200e6, n_su
     return EVM_db
 
 
-def ACLR(prediction, fs=800e6, nperseg=2560, bw_main_ch=200e6, n_sub_ch=10):
+def ACLR(prediction, sample_rate=int(800e6), bw_main_ch=200e6, n_sub_ch=10, nperseg=2560):
     """
     Calculates the left and right Adjacent Channel Leakage Ratio (ACLR).
 
     Parameters:
-    - frequencies: Array of frequency values from the Welch method.
-    - psd: Power Spectral Density values corresponding to the frequencies.
-    - bw_main_ch: Bandwidth of the main channel baseband signals (default is 200e6).
-    - bw_side_ch: Bandwidth of the side channel baseband signals (default is 20e6).
+    - prediction (array): Prediction/measurements of the PA or DPD-PA outputs.
+    - sample_rate (int, optional): Sampling rate. Default is 800e6.
+    - bw_main_ch (float, optional): Bandwidth of the main channel baseband signals (default is 200e6).
+    - n_sub_ch (int, optional): Number of sub-channels. Default is 10.
+    - nperseg (int, optional): Length of each segment for the FFT. If not provided, use the entire signal. Default is 2560.
 
     Returns:
-    - aclr_left: ACLR value for the left adjacent channel.
-    - aclr_right: ACLR value for the right adjacent channel.
+    - aclr_left (float): ACLR value for the left adjacent channel.
+    - aclr_right (float): ACLR value for the right adjacent channel.
     """
     # Get complex signal
     complex_signal = IQ_to_complex(prediction)
 
     # Calculate power spectral density
-    freq, psd = power_spectrum(complex_signal, fs=fs, nperseg=nperseg, axis=-1)
+    freq, psd = power_spectrum(complex_signal, sample_rate=sample_rate, nperseg=nperseg, axis=-1)
 
     # Compute the left and right index of the main channel
     index_left = np.min(np.where(freq >= -bw_main_ch / 2))
@@ -151,32 +150,31 @@ def ACLR(prediction, fs=800e6, nperseg=2560, bw_main_ch=200e6, n_sub_ch=10):
     return aclr_left, aclr_right
 
 
-def power_spectrum(complex_signal, fs=800e6, nperseg=2560, axis=-1):
+def power_spectrum(complex_signal, sample_rate=int(800e6), nperseg=2560, axis=-1):
     """
     Compute the Power Spectral Density (PSD) of a given complex signal using the Welch method.
 
     Parameters:
-    - complex_signal: Input complex signal for which the PSD is to be computed.
-    - fs (float, optional): Sampling frequency of the signal. Default is 800e6 (800 MHz).
+    - complex_signal (array): Input complex signal for which the PSD is to be computed.
+    - sample_rate (int, optional): Sampling frequency of the signal. Default is 800e6 (800 MHz).
     - nperseg (int, optional): Number of datasets points to be used in each block for the Welch method. Default is 2560.
 
     Returns:
-    - frequencies_signal_subset: Frequencies at which the PSD is computed.
-    - psd_signal_subset: PSD values.
+    - frequencies_signal_subset (array): Frequencies at which the PSD is computed.
+    - psd_signal_subset (array): PSD values.
     """
 
     import numpy as np
     from scipy.signal import welch
 
     # Compute the PSD using the Welch method
-    freq, ps = welch(complex_signal, fs=fs, nperseg=nperseg,
-                      return_onesided=False, scaling='spectrum', axis=-1)
+    freq, ps = welch(complex_signal, fs=sample_rate, nperseg=nperseg,
+                    return_onesided=False, scaling='spectrum', axis=-1)
 
     # To make the frequency axis monotonic, we need to shift the zero frequency component to the center.
     # This step rearranges the computed PSD and frequency values such that the negative frequencies appear first.
     half_nfft = int(nperseg / 2)
-    freq = np.concatenate(
-        (freq[half_nfft:], freq[:half_nfft]))
+    freq = np.concatenate((freq[half_nfft:], freq[:half_nfft]))
 
     # Rearrange the PSD values corresponding to the rearranged frequency values.
     ps = np.concatenate((ps[..., half_nfft:], ps[..., :half_nfft]), axis=-1)

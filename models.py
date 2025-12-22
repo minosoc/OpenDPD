@@ -8,20 +8,34 @@ from backbones.rvtdcnn import RVTDCNN
 
 
 class CoreModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, backbone_type, window_size=None, num_dvr_units=None, thx=0, thh=0, n_heads=8, d_ff=None, dropout=0.1):
+    def __init__(   self, input_size,
+                    backbone_type,
+                    hidden_size,
+                    num_layers,
+                    window_size=None,
+                    num_dvr_units=None,
+                    thx=0,
+                    thh=0,
+                    d_model=2048,
+                    n_heads=8,
+                    d_ff=2048,
+                    dropout_ff=0.1,
+                    dropout_attn=0.1):
         super(CoreModel, self).__init__()
-        self.output_size = 2  # PA outputs: I & Q
         self.input_size = input_size
+        self.output_size = 2  # PA outputs: I & Q
+        self.backbone_type = backbone_type
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.backbone_type = backbone_type
         self.window_size = window_size
         self.num_dvr_units = num_dvr_units
         self.thx = thx
         self.thh = thh
+        self.d_model = d_model
         self.n_heads = n_heads
         self.d_ff = d_ff
-        self.dropout = dropout
+        self.dropout_ff = dropout_ff
+        self.dropout_attn = dropout_attn
         self.batch_first = True  # Force batch first
         self.bidirectional = False
         self.bias = True
@@ -41,95 +55,95 @@ class CoreModel(nn.Module):
         elif backbone_type == 'dgru':
             from backbones.dgru import DGRU
             self.backbone = DGRU(hidden_size=self.hidden_size,
-                                 output_size=self.output_size,
-                                 num_layers=self.num_layers,
-                                 bidirectional=self.bidirectional,
-                                 batch_first=self.batch_first,
-                                 bias=self.bias)
+                                output_size=self.output_size,
+                                num_layers=self.num_layers,
+                                bidirectional=self.bidirectional,
+                                batch_first=self.batch_first,
+                                bias=self.bias)
         elif backbone_type == 'qgru':
             from backbones.qgru import QGRU
             self.backbone = QGRU(hidden_size=self.hidden_size,
-                                 output_size=self.output_size,
-                                 num_layers=self.num_layers,
-                                 bidirectional=self.bidirectional,
-                                 batch_first=self.batch_first,
-                                 bias=self.bias)
+                                output_size=self.output_size,
+                                num_layers=self.num_layers,
+                                bidirectional=self.bidirectional,
+                                batch_first=self.batch_first,
+                                bias=self.bias)
         elif backbone_type == 'qgru_amp1':
             from backbones.qgru_amp1 import QGRU
             self.backbone = QGRU(hidden_size=self.hidden_size,
-                                 output_size=self.output_size,
-                                 num_layers=self.num_layers,
-                                 bidirectional=self.bidirectional,
-                                 batch_first=self.batch_first,
-                                 bias=self.bias)
+                                output_size=self.output_size,
+                                num_layers=self.num_layers,
+                                bidirectional=self.bidirectional,
+                                batch_first=self.batch_first,
+                                bias=self.bias)
         elif backbone_type == 'lstm':
             from backbones.lstm import LSTM
             self.backbone = LSTM(input_size=self.input_size,
-                                 hidden_size=self.hidden_size,
-                                 output_size=self.output_size,
-                                 num_layers=self.num_layers,
-                                 bidirectional=self.bidirectional,
-                                 batch_first=self.batch_first,
-                                 bias=self.bias)
+                                hidden_size=self.hidden_size,
+                                output_size=self.output_size,
+                                num_layers=self.num_layers,
+                                bidirectional=self.bidirectional,
+                                batch_first=self.batch_first,
+                                bias=self.bias)
         elif backbone_type == 'vdlstm':
             from backbones.vdlstm import VDLSTM
             self.backbone = VDLSTM(input_size=self.input_size,
-                                   hidden_size=self.hidden_size,
-                                   output_size=self.output_size,
-                                   num_layers=self.num_layers,
-                                   bidirectional=self.bidirectional,
-                                   batch_first=self.batch_first,
-                                   bias=self.bias)
+                                    hidden_size=self.hidden_size,
+                                    output_size=self.output_size,
+                                    num_layers=self.num_layers,
+                                    bidirectional=self.bidirectional,
+                                    batch_first=self.batch_first,
+                                    bias=self.bias)
         elif backbone_type == 'rvtdcnn':
-            self.backbone = RVTDCNN(fc_hid_size=hidden_size)
+            self.backbone = RVTDCNN(fc_hid_size=self.hidden_size)
         elif backbone_type == 'apnrru':
             from backbones.apnrru import APNRRU
             self.backbone = APNRRU(hidden_size=self.hidden_size,
-                                   bias=self.bias)
+                                    bias=self.bias)
         elif backbone_type == 'bojanet':
             from backbones.bojanet import BOJANET
             self.backbone = BOJANET(hidden_size=self.hidden_size,
-                                   output_size=self.output_size,
-                                   bias=self.bias)
+                                    output_size=self.output_size,
+                                    bias=self.bias)
         elif backbone_type == 'deltagru':
             from backbones.deltagru import DeltaGRU
             self.backbone = DeltaGRU(input_size=6,
-                                     hidden_size=self.hidden_size,
-                                     output_size=self.output_size,
-                                     num_layers=self.num_layers,
-                                     thx=self.thx,
-                                     thh=self.thh,
-                                     bias=self.bias)  
+                                    hidden_size=self.hidden_size,
+                                    output_size=self.output_size,
+                                    num_layers=self.num_layers,
+                                    thx=self.thx,
+                                    thh=self.thh,
+                                    bias=self.bias)  
         elif backbone_type == 'deltajanet':
             from backbones.deltajanet import DeltaJANET
             self.backbone = DeltaJANET(input_size=6,
-                                     hidden_size=self.hidden_size,
-                                     output_size=self.output_size,
-                                     num_layers=self.num_layers,
-                                     thx=self.thx,
-                                     thh=self.thh,
-                                     bias=self.bias)
+                                        hidden_size=self.hidden_size,
+                                        output_size=self.output_size,
+                                        num_layers=self.num_layers,
+                                        thx=self.thx,
+                                        thh=self.thh,
+                                        bias=self.bias)
         elif backbone_type == 'pgjanet':
             from backbones.pgjanet import PGJANET
             self.backbone = PGJANET(hidden_size=self.hidden_size,
-                                  output_size=self.output_size,
-                                  bias=self.bias,
-                                  window_size=self.window_size)
+                                    output_size=self.output_size,
+                                    bias=self.bias,
+                                    window_size=self.window_size)
         elif backbone_type == 'dvrjanet':
             from backbones.dvrjanet import DVRJANET
             self.backbone = DVRJANET(hidden_size=self.hidden_size,
-                                   output_size=self.output_size,
-                                   num_dvr_units=self.num_dvr_units,
-                                   bias=self.bias)
+                                    output_size=self.output_size,
+                                    num_dvr_units=self.num_dvr_units,
+                                    bias=self.bias)
         elif backbone_type == 'deltagru_tcnskip':
             from backbones.deltagru_tcnskip import DeltaGRU
             self.backbone = DeltaGRU(input_size=6,
-                                             hidden_size=self.hidden_size,
-                                             output_size=self.output_size,
-                                             num_layers=self.num_layers,
-                                             thx=self.thx,
-                                             thh=self.thh,
-                                             bias=self.bias)
+                                    hidden_size=self.hidden_size,
+                                    output_size=self.output_size,
+                                    num_layers=self.num_layers,
+                                    thx=self.thx,
+                                    thh=self.thh,
+                                    bias=self.bias)
         elif backbone_type == 'tcnn':
             from backbones.tcnn import TCNN
             self.backbone = TCNN(hidden_channels=self.hidden_size)
@@ -142,16 +156,17 @@ class CoreModel(nn.Module):
         elif backbone_type == 'transformer_encoder':
             from backbones.transformer_encoder import TransformerEncoder
             self.backbone = TransformerEncoder(input_size=self.input_size,
-                                              hidden_size=self.hidden_size,
-                                              output_size=self.output_size,
-                                              num_layers=self.num_layers,
-                                              n_heads=self.n_heads,
-                                              d_ff=self.d_ff,
-                                              dropout=self.dropout,
-                                              bias=self.bias)
+                                                output_size=self.output_size,
+                                                num_layers=self.num_layers,
+                                                d_model=self.d_model,
+                                                n_heads=self.n_heads,
+                                                d_ff=self.d_ff,
+                                                dropout_ff=self.dropout_ff,
+                                                dropout_attn=self.dropout_attn,
+                                                bias=self.bias)
         else:
             raise ValueError(f"The backbone type '{self.backbone_type}' is not supported. Please add your own "
-                             f"backbone under ./backbones and update models.py accordingly.")
+                            f"backbone under ./backbones and update models.py accordingly.")
 
         # Initialize backbone parameters
         try:

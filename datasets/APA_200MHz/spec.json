@@ -9,5 +9,6 @@
     "bw_main_ch": 200e6,
     "bw_sub_ch": 200e6,
     "n_sub_ch": 1,
-    "nperseg": 19662
+    "nperseg": 19662,
+    "gain": 10.0
 }

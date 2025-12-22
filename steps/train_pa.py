@@ -15,21 +15,23 @@ def main(proj: Project):
     proj.set_device()
 
     # Build Dataloaders
-    (train_loader, val_loader, test_loader), input_size = proj.build_dataloaders()
+    (train_loader, val_loader), input_size = proj.build_dataloaders()
 
     ###########################################################################################################
     # Network Settings
     ###########################################################################################################
     # Instantiate Model
-    net = model.CoreModel(input_size=input_size,
-                          hidden_size=proj.PA_hidden_size,
-                          num_layers=proj.PA_num_layers,
-                          backbone_type=proj.PA_backbone,
-                          window_size=proj.window_size,
-                          num_dvr_units=proj.num_dvr_units,
-                          n_heads=getattr(proj, 'n_heads', 8),
-                          d_ff=getattr(proj, 'd_ff', None),
-                          dropout=getattr(proj, 'dropout', 0.1))
+    net = model.CoreModel(  input_size=input_size,
+                            backbone_type=proj.args.PA_backbone,
+                            hidden_size=proj.args.PA_hidden_size,
+                            num_layers=proj.args.PA_num_layers,
+                            window_size=proj.args.window_size,
+                            num_dvr_units=proj.args.num_dvr_units,
+                            d_model=proj.args.d_model,
+                            n_heads=proj.args.n_heads,
+                            d_ff=proj.args.d_ff,
+                            dropout_ff=proj.args.dropout_ff,
+                            dropout_attn=proj.args.dropout_attn)
     n_net_pa_params = count_net_params(net)
     print("::: Number of PA Model Parameters: ", n_net_pa_params)
     pa_model_id = proj.gen_pa_model_id(n_net_pa_params)
@@ -52,11 +54,10 @@ def main(proj: Project):
     ###########################################################################################################
     # Training
     ###########################################################################################################
-    proj.train(net=net,
-               criterion=criterion,
-               optimizer=optimizer,
-               lr_scheduler=lr_scheduler,
-               train_loader=train_loader,
-               val_loader=val_loader,
-               test_loader=test_loader,
-               best_model_metric='NMSE')
+    proj.train( net=net,
+                criterion=criterion,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                best_model_metric='NMSE')

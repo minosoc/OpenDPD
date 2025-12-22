@@ -65,17 +65,19 @@ class SinusoidalPositionalEncoding(nn.Module):
 class TransformerEncoderLayer(nn.Module):
     """Single Transformer encoder layer"""
     
-    def __init__(self, d_model, n_heads, d_ff, dropout=0.1):
+    def __init__(self, d_model, n_heads, d_ff, dropout_ff=0.1, dropout_attn=0.1):
         super(TransformerEncoderLayer, self).__init__()
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_ff = d_ff
+        self.dropout_ff = dropout_ff
+        self.dropout_attn = dropout_attn
         
         # Multi-head self-attention
         self.self_attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_heads,
-            dropout=dropout,
+            dropout=dropout_attn,
             batch_first=True
         )
         
@@ -83,16 +85,16 @@ class TransformerEncoderLayer(nn.Module):
         self.feedforward = nn.Sequential(
             nn.Linear(d_model, d_ff),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Dropout(dropout_ff),
             nn.Linear(d_ff, d_model),
-            nn.Dropout(dropout)
+            nn.Dropout(dropout_ff)
         )
         
         # Layer normalization
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout_ff)
     
     def forward(self, x):
         """
@@ -115,35 +117,36 @@ class TransformerEncoderLayer(nn.Module):
 class TransformerEncoder(nn.Module):
     """Transformer encoder backbone for PA/DPD models"""
     
-    def __init__(self, input_size, hidden_size, output_size, num_layers, 
-                 n_heads=8, d_ff=None, dropout=0.1, bias=True):
+    def __init__(self, input_size, output_size, num_layers, d_model, 
+                n_heads=8, d_ff=2048, dropout_ff=0.1, dropout_attn=0.1, bias=True):
         super(TransformerEncoder, self).__init__()
         self.input_size = input_size
-        self.hidden_size = hidden_size  # d_model
         self.output_size = output_size
         self.num_layers = num_layers
+        self.d_model = d_model
         self.n_heads = n_heads
-        self.d_ff = d_ff if d_ff is not None else hidden_size * 4
-        self.dropout = dropout
+        self.d_ff = d_ff
+        self.dropout_ff = dropout_ff
+        self.dropout_attn = dropout_attn
         self.bias = bias
         
         # Input embedding layer
-        self.input_embedding = nn.Linear(input_size, hidden_size, bias=bias)
+        self.input_embedding = nn.Linear(input_size, d_model, bias=bias)
         
         # Sinusoidal positional encoding
-        self.pos_encoding = SinusoidalPositionalEncoding(hidden_size)
+        self.pos_encoding = SinusoidalPositionalEncoding(d_model)
         
         # Transformer encoder layers
         self.encoder_layers = nn.ModuleList([
-            TransformerEncoderLayer(hidden_size, n_heads, self.d_ff, dropout)
+            TransformerEncoderLayer(d_model, n_heads, self.d_ff, dropout_ff, dropout_attn)
             for _ in range(num_layers)
         ])
         
         # Output projection layer
-        self.output_projection = nn.Linear(hidden_size, output_size, bias=bias)
+        self.output_projection = nn.Linear(d_model, output_size, bias=bias)
     
     def reset_parameters(self):
-        """Initialize parameters"""
+        # """Initialize parameters"""
         # Initialize input embedding
         nn.init.xavier_uniform_(self.input_embedding.weight)
         if self.input_embedding.bias is not None:
@@ -188,7 +191,7 @@ class TransformerEncoder(nn.Module):
             Output tensor of shape (batch_size, seq_len, output_size)
         """
         # Input embedding
-        x = self.input_embedding(x)  # (batch_size, seq_len, hidden_size)
+        x = self.input_embedding(x)  # (batch_size, seq_len, d_model)
         
         # Add positional encoding
         x = self.pos_encoding(x)
