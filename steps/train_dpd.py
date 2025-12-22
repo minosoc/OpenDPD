@@ -30,7 +30,10 @@ def main(proj: Project):
                              num_layers=proj.PA_num_layers,
                              backbone_type=proj.PA_backbone,
                              window_size=proj.window_size,
-                             num_dvr_units=proj.num_dvr_units)
+                             num_dvr_units=proj.num_dvr_units,
+                             n_heads=getattr(proj, 'n_heads', 8),
+                             d_ff=getattr(proj, 'd_ff', None),
+                             dropout=getattr(proj, 'dropout', 0.1))
     n_net_pa_params = count_net_params(net_pa)
     print("::: Number of PA Model Parameters: ", n_net_pa_params)
     pa_model_id = proj.gen_pa_model_id(n_net_pa_params)
@@ -40,7 +43,10 @@ def main(proj: Project):
     if hasattr(proj.args, 'version') and proj.args.version:
         pa_model_dir = os.path.join(pa_model_dir, proj.args.version)
     path_pa_model = os.path.join(pa_model_dir, pa_model_id + '.pt')
-    net_pa.load_state_dict(torch.load(path_pa_model))
+    state_dict = torch.load(path_pa_model)
+    # Remove positional encoding from state_dict if present (it's dynamically generated)
+    state_dict = {k: v for k, v in state_dict.items() if 'pos_encoding.pe' not in k}
+    net_pa.load_state_dict(state_dict, strict=False)
 
     # Instantiate DPD Model
     net_dpd = model.CoreModel(input_size=input_size,
@@ -50,7 +56,10 @@ def main(proj: Project):
                               window_size=proj.window_size,
                               num_dvr_units=proj.num_dvr_units,
                               thx=proj.thx,
-                              thh=proj.thh)
+                              thh=proj.thh,
+                              n_heads=getattr(proj, 'n_heads', 8),
+                              d_ff=getattr(proj, 'd_ff', None),
+                              dropout=getattr(proj, 'dropout', 0.1))
     
     net_dpd = get_quant_model(proj, net_dpd)
     

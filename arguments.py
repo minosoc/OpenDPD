@@ -45,7 +45,7 @@ def get_arguments():
     parser.add_argument('--PA_backbone', default='gru',
                         choices=['gmp','deltagru', 'deltajanet', 'janet', 'fcn', 'gru', 'dgru', 'qgru', 'qgru_amp1', 'lstm', 'vdlstm',
                                 'rvtdcnn', 'mamba', 'tcn', 'pntdnn', 'pdgru', 'pgjanet', 'dvrjanet', 'bojanet', 'pnjanet', 'apnrnn', 'djanet',
-                                'tcnn', 'neuraltx', 'mcldnn'],
+                                'tcnn', 'neuraltx', 'mcldnn', 'transformer_encoder'],
                         help='Modeling PA Recurrent layer type')
     parser.add_argument('--PA_hidden_size', default=23, type=int,
                         help='Hidden size of PA backbone')
@@ -55,11 +55,15 @@ def get_arguments():
     parser.add_argument('--DPD_backbone', default='gru',
                         choices=['gmp', 'deltagru', 'deltajanet', 'janet', 'snn', 'fcn', 'gru', 'dgru', 'qgru', 'qgru_amp1', 'lstm', 'vdlstm',
                                 'rvtdcnn', 'deltagru_tcnskip', 'tcn', 'pntdnn', 'pdgru', 'pgjanet', 'dvrjanet', 'bojanet', 'pnjanet', 'djanet',
-                                'tcnn', 'neuraltx', 'mcldnn'],
+                                'tcnn', 'neuraltx', 'mcldnn', 'transformer_encoder'],
                         help='DPD model Recurrent layer type')
     parser.add_argument('--DPD_hidden_size', default=15, type=int, help='Hidden size of DPD backbone.')
     parser.add_argument('--DPD_num_layers', default=1, type=int, help='Number of layers of the DPD backbone.')
 
+    # Transformer Encoder Hyperparameters
+    parser.add_argument('--n_heads', default=8, type=int, help='Number of attention heads for transformer encoder.')
+    parser.add_argument('--d_ff', default=None, type=int, help='Feedforward network dimension for transformer encoder (default: hidden_size * 4).')
+    parser.add_argument('--dropout', default=0.1, type=float, help='Dropout rate for transformer encoder.')
 
     # quantization
     parser.add_argument('--quant', action='store_true', default=False, help='Whether to quantize the model')

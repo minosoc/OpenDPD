@@ -54,21 +54,32 @@ def main(proj: Project):
                              hidden_size=proj.PA_hidden_size,
                              num_layers=proj.PA_num_layers,
                              backbone_type=proj.PA_backbone,
-                             num_dvr_units=proj.num_dvr_units)
+                             num_dvr_units=proj.num_dvr_units,
+                             n_heads=getattr(proj, 'n_heads', 8),
+                             d_ff=getattr(proj, 'd_ff', None),
+                             dropout=getattr(proj, 'dropout', 0.1))
     n_net_pa_params = count_net_params(net_pa)
     print("::: Number of PA Model Parameters: ", n_net_pa_params)
     pa_model_id = proj.gen_pa_model_id(n_net_pa_params)
     
     # Load Pretrained PA Model
-    path_pa_model = os.path.join('save', proj.dataset_name, 'train_pa', pa_model_id + '.pt')
-    print("::: Loading PA Model: ", path_pa_model)
-    net_pa.load_state_dict(torch.load(path_pa_model, map_location='cpu'))
+    pa_model_dir = os.path.join('save', proj.dataset_name, 'train_pa')
+    if hasattr(proj.args, 'version') and proj.args.version:
+        pa_model_dir = os.path.join(pa_model_dir, proj.args.version)
+    path_pa_model = os.path.join(pa_model_dir, pa_model_id + '.pt')
+    state_dict = torch.load(path_pa_model)
+    # Remove positional encoding from state_dict if present (it's dynamically generated)
+    state_dict = {k: v for k, v in state_dict.items() if 'pos_encoding.pe' not in k}
+    net_pa.load_state_dict(state_dict, strict=False)
     
     # Instantiate DPD Model
     net_dpd = model.CoreModel(input_size=2,
                               hidden_size=proj.DPD_hidden_size,
                               num_layers=proj.DPD_num_layers,
-                              backbone_type=proj.DPD_backbone)
+                              backbone_type=proj.DPD_backbone,
+                              n_heads=getattr(proj, 'n_heads', 8),
+                              d_ff=getattr(proj, 'd_ff', None),
+                              dropout=getattr(proj, 'dropout', 0.1))
     
     # Determine DPD model path (pretrained_model is required)
     if not proj.args.pretrained_model:
@@ -92,6 +103,8 @@ def main(proj: Project):
         
         print("::: Loading Quantization DPD Model: ", original_pretrained)
         state_dict = torch.load(original_pretrained, map_location='cpu')
+        # Remove positional encoding from state_dict if present (it's dynamically generated)
+        state_dict = {k: v for k, v in state_dict.items() if 'pos_encoding.pe' not in k}
         missing_keys, unexpected_keys = net_dpd.load_state_dict(state_dict, strict=False)
         if missing_keys:
             print(f"::: Warning: {len(missing_keys)} missing keys (using defaults)")
@@ -103,11 +116,10 @@ def main(proj: Project):
         
         print("::: Loading DPD Model: ", proj.args.pretrained_model)
         state_dict = torch.load(proj.args.pretrained_model, map_location='cpu')
-        try:
-            net_dpd.load_state_dict(state_dict, strict=True)
-        except RuntimeError:
-            net_dpd.load_state_dict(state_dict, strict=False)
-            print("::: Loaded with strict=False (quantization model)")
+        # Remove positional encoding from state_dict if present (it's dynamically generated)
+        state_dict = {k: v for k, v in state_dict.items() if 'pos_encoding.pe' not in k}
+        # Use strict=False since we removed pe from state_dict
+        net_dpd.load_state_dict(state_dict, strict=False)
         
         total_load_time = time.time() - load_start_time
         print(f"::: DPD model loaded successfully (Total: {total_load_time:.3f}s)")

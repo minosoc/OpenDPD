@@ -26,7 +26,10 @@ def main(proj: Project):
                           num_layers=proj.PA_num_layers,
                           backbone_type=proj.PA_backbone,
                           window_size=proj.window_size,
-                          num_dvr_units=proj.num_dvr_units)
+                          num_dvr_units=proj.num_dvr_units,
+                          n_heads=getattr(proj, 'n_heads', 8),
+                          d_ff=getattr(proj, 'd_ff', None),
+                          dropout=getattr(proj, 'dropout', 0.1))
     n_net_pa_params = count_net_params(net)
     print("::: Number of PA Model Parameters: ", n_net_pa_params)
     pa_model_id = proj.gen_pa_model_id(n_net_pa_params)

@@ -37,14 +37,14 @@ decay_factor=${DECAY_FACTOR:-0.5}
 patience=${PATIENCE:-10}
 
 seed_values=(0)
-PA_backbone=dgru
-PA_hidden_size=23
+PA_backbone=transformer_encoder
+PA_hidden_size=128
 PA_num_layers=1
-DPD_backbone=(deltagru_tcnskip)
-DPD_hidden_size=(15)
-DPD_num_layers=(1)
-thx=${THX:-0.01}
-thh=${THH:-0.05}
+DPD_backbone=transformer_encoder
+DPD_hidden_size=128
+DPD_num_layers=1
+# thx=${THX:-0.01}
+# thh=${THH:-0.05}
 # quant_n_bits_w=${QUANT_BITS_W:-16}
 # quant_n_bits_a=${QUANT_BITS_A:-16}
 # quant_opts=(--quant --n_bits_w "${quant_n_bits_w}" --n_bits_a "${quant_n_bits_a}")
@@ -57,7 +57,7 @@ printf '\033[32m==== Train PA model (dataset=%s) ====\033[0m\n' "${dataset_name}
   --devices "${devices}" \
   --PA_backbone "${PA_backbone}" \
   --PA_hidden_size "${PA_hidden_size}" \
-  --PA_num_layers "${PA_num_layers}"
+  --PA_num_layers "${PA_num_layers}" \
   --frame_length "${frame_length}" \
   --frame_stride "${frame_stride}" \
   --loss_type "${loss_type}" \
@@ -98,10 +98,10 @@ for i_seed in "${seed_values[@]}"; do
       --lr_end "${lr_end}" \
       --decay_factor "${decay_factor}" \
       --patience "${patience}" \
-      --thx "${thx}" \
-      --thh "${thh}"
 
-
+    pretrained_pattern="./save/${dataset_name}/train_dpd/DPD_S_${i_seed}_M_${DPD_backbone[$i]^^}_H_${DPD_hidden_size[$i]}_F_${frame_length}"
+    pretrained_model=$(ls -1t ${pretrained_pattern}*.pt 2>/dev/null | head -n1 || true)
+    if [[ -n "${pretrained_model}" ]]; then
     printf '\033[32m==== Run DPD (seed=%s, backbone=%s) ====\033[0m\n' "${i_seed}" "${DPD_backbone[$i]}"
     "${PYTHON_BIN}" main.py \
       --dataset_name "${dataset_name}" \
@@ -136,36 +136,36 @@ done
     # pretrained_pattern="./save/${dataset_name}/train_dpd/DPD_S_${i_seed}_M_${DPD_backbone[$i]^^}_H_${DPD_hidden_size[$i]}_F_${frame_length}"
     # pretrained_model=""
     # if pretrained_model=$(ls -1t ${pretrained_pattern}*.pt 2>/dev/null | head -n1 || true); then
-    #   printf '\033[32m==== Quantized aware training (label %s) ====\033[0m\n' "${quant_dir_label}"
-    #   "${PYTHON_BIN}" main.py \
-    #     --dataset_name "${dataset_name}" \
-    #     --seed "${i_seed}" \
-    #     --step train_dpd \
-    #     --accelerator "${accelerator}" \
-    #     --devices "${devices}" \
-    #     --PA_backbone "${PA_backbone}" \
-    #     --PA_hidden_size "${PA_hidden_size}" \
-    #     --PA_num_layers "${PA_num_layers}" \
-    #     --DPD_backbone "${DPD_backbone[$i]}" \
-    #     --DPD_hidden_size "${DPD_hidden_size[$i]}" \
-    #     --DPD_num_layers "${DPD_num_layers[$i]}" \
-    #     --frame_length "${frame_length}" \
-    #     --frame_stride "${frame_stride}" \
-    #     --loss_type "${loss_type}" \
-    #     --opt_type "${opt_type}" \
-    #     --batch_size "${batch_size}" \
-    #     --batch_size_eval "${batch_size_eval}" \
-    #     --n_epochs "${n_epochs}" \
-    #     --lr_schedule "${lr_schedule}" \
-    #     --lr "${lr}" \
-    #     --lr_end "${lr_end}" \
-    #     --decay_factor "${decay_factor}" \
-    #     --patience "${patience}" \
-    #     --quant_dir_label "${quant_dir_label}" \
-    #     --pretrained_model "${pretrained_model}" \
-    #     --thx "${thx}" \
-    #     --thh "${thh}" \
-    #     "${quant_opts[@]}"
+      # printf '\033[32m==== Quantized aware training (label %s) ====\033[0m\n' "${quant_dir_label}"
+      # "${PYTHON_BIN}" main.py \
+        # --dataset_name "${dataset_name}" \
+        # --seed "${i_seed}" \
+        # --step train_dpd \
+        # --accelerator "${accelerator}" \
+        # --devices "${devices}" \
+        # --PA_backbone "${PA_backbone}" \
+        # --PA_hidden_size "${PA_hidden_size}" \
+        # --PA_num_layers "${PA_num_layers}" \
+        # --DPD_backbone "${DPD_backbone[$i]}" \
+        # --DPD_hidden_size "${DPD_hidden_size[$i]}" \
+        # --DPD_num_layers "${DPD_num_layers[$i]}" \
+        # --frame_length "${frame_length}" \
+        # --frame_stride "${frame_stride}" \
+        # --loss_type "${loss_type}" \
+        # --opt_type "${opt_type}" \
+        # --batch_size "${batch_size}" \
+        # --batch_size_eval "${batch_size_eval}" \
+        # --n_epochs "${n_epochs}" \
+        # --lr_schedule "${lr_schedule}" \
+        # --lr "${lr}" \
+        # --lr_end "${lr_end}" \
+        # --decay_factor "${decay_factor}" \
+        # --patience "${patience}" \
+        # --quant_dir_label "${quant_dir_label}" \
+        # --pretrained_model "${pretrained_model}" \
+        # --thx "${thx}" \
+        # --thh "${thh}" \
+        # "${quant_opts[@]}"
 
       # printf '\033[32m==== Run DPD (label %s) ====\033[0m\n' "${quant_dir_label}"
       # "${PYTHON_BIN}" main.py \
@@ -200,6 +200,5 @@ done
     # else
     #   printf '[WARN] Pretrained model not found for pattern %s*.pt. Skipping quantized training.\n' "${pretrained_pattern}" >&2
     # fi
-#   done
-
+  # done
 # done

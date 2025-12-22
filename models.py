@@ -8,7 +8,7 @@ from backbones.rvtdcnn import RVTDCNN
 
 
 class CoreModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, backbone_type, window_size=None, num_dvr_units=None, thx=0, thh=0):
+    def __init__(self, input_size, hidden_size, num_layers, backbone_type, window_size=None, num_dvr_units=None, thx=0, thh=0, n_heads=8, d_ff=None, dropout=0.1):
         super(CoreModel, self).__init__()
         self.output_size = 2  # PA outputs: I & Q
         self.input_size = input_size
@@ -19,6 +19,9 @@ class CoreModel(nn.Module):
         self.num_dvr_units = num_dvr_units
         self.thx = thx
         self.thh = thh
+        self.n_heads = n_heads
+        self.d_ff = d_ff
+        self.dropout = dropout
         self.batch_first = True  # Force batch first
         self.bidirectional = False
         self.bias = True
@@ -136,6 +139,16 @@ class CoreModel(nn.Module):
         elif backbone_type == 'mcldnn':
             from backbones.mcldnn import MCLDNN
             self.backbone = MCLDNN(hidden_size=self.hidden_size)
+        elif backbone_type == 'transformer_encoder':
+            from backbones.transformer_encoder import TransformerEncoder
+            self.backbone = TransformerEncoder(input_size=self.input_size,
+                                              hidden_size=self.hidden_size,
+                                              output_size=self.output_size,
+                                              num_layers=self.num_layers,
+                                              n_heads=self.n_heads,
+                                              d_ff=self.d_ff,
+                                              dropout=self.dropout,
+                                              bias=self.bias)
         else:
             raise ValueError(f"The backbone type '{self.backbone_type}' is not supported. Please add your own "
                              f"backbone under ./backbones and update models.py accordingly.")
