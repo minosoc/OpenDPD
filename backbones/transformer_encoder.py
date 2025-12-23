@@ -138,7 +138,7 @@ class TransformerEncoder(nn.Module):
         
         # Transformer encoder layers
         self.encoder_layers = nn.ModuleList([
-            TransformerEncoderLayer(d_model, n_heads, self.d_ff, dropout_ff, dropout_attn)
+            TransformerEncoderLayer(d_model, n_heads, d_ff, dropout_ff, dropout_attn)
             for _ in range(num_layers)
         ])
         
@@ -197,7 +197,7 @@ class TransformerEncoder(nn.Module):
         x = self.pos_encoding(x)
         
         # Apply dropout to embeddings
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.dropout(x, p=self.dropout_ff, training=self.training)
         
         # Pass through encoder layers
         for layer in self.encoder_layers:

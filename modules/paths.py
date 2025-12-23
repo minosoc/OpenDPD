@@ -28,9 +28,11 @@ def gen_log_stat(args: argparse.Namespace, elapsed_time, net, optimizer, epoch, 
     if args.step == 'train_pa':
         backbone = args.PA_backbone
         hidden_size = args.PA_hidden_size
+        num_layers = args.PA_num_layers
     elif args.step == 'train_dpd':
         backbone = args.DPD_backbone
         hidden_size = args.DPD_hidden_size
+        num_layers = args.DPD_num_layers
 
     # Create log dictionary
     log_stat = {'EPOCH': epoch,
@@ -48,7 +50,7 @@ def gen_log_stat(args: argparse.Namespace, elapsed_time, net, optimizer, epoch, 
         log_stat['D_MODEL'] = args.d_model
         log_stat['N_HEADS'] = args.n_heads
         log_stat['D_FF'] = args.d_ff
-        log_stat['NUM_LAYERS'] = args.PA_num_layers
+        log_stat['NUM_LAYERS'] = num_layers
     # Add threshold values to log
     if args.step == 'train_dpd':
         if 'delta' in net.dpd_model.backbone_type:
@@ -129,8 +131,8 @@ def gen_dir_paths(args: argparse.Namespace):
 def gen_file_paths(path_dir_save: str, path_dir_log: str, path_dir_terminal_log: str, model_id: str, step: str):
     # File Paths
     path_file_save_best = os.path.join(path_dir_save, model_id + '.pt')
-    path_file_log_hist = os.path.join(path_dir_log, step, 'history.csv')
-    path_file_log_best = os.path.join(path_dir_log, step, 'best.csv')
+    path_file_log_hist = os.path.join(path_dir_log, step + '_history.csv')
+    path_file_log_best = os.path.join(path_dir_log, step + '_best.csv')
     path_file_terminal_log = os.path.join(path_dir_terminal_log, step + '.log')
     file_paths = (path_file_save_best, path_file_log_hist, path_file_log_best, path_file_terminal_log)
     return file_paths

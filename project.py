@@ -18,7 +18,7 @@ from modules.paths import create_folder, gen_log_stat, gen_dir_paths, gen_file_p
 from modules.train_funcs import net_train, net_eval, calculate_metrics
 from utils import util
 from modules.loggers import PandasLogger
-from utils.util import set_target_gain
+# from utils.util import set_target_gain
 
 
 def dict_to_namespace(d):
@@ -91,7 +91,6 @@ class Project:
     def gen_dpd_model_id(self, n_net_params):
         dict_dpd = {'S': f"{self.seed}",
                     'M': self.DPD_backbone.upper(),
-                    'H': f"{self.gen_dpd_model_id:d}"
                     }
         if 'transformer' in self.DPD_backbone:
             dict_dpd['D'] = f"{self.d_model:d}"
@@ -223,9 +222,9 @@ class Project:
 
         # Load Dataset
         if hasattr(self, 'dataset_path') and self.dataset_path:
-            X_train, y_train, X_val, y_val = load_dataset(dataset_path=self.dataset_path)
+            X_train, y_train, X_val, y_val, _, _ = load_dataset(dataset_path=self.dataset_path)
         else:
-            X_train, y_train, X_val, y_val = load_dataset(dataset_name=self.dataset_name)
+            X_train, y_train, X_val, y_val, _, _ = load_dataset(dataset_name=self.dataset_name)
 
         # Apply the PA Gain if training DPD
         # For DPD training, target should be ideal linear amplification (input * target_gain)
@@ -245,7 +244,7 @@ class Project:
 
         # Define PyTorch Datasets
         train_set = IQFrameDataset(X_train, y_train, frame_length=self.frame_length, stride=self.frame_stride)
-        val_set = IQSegmentDataset(X_val, y_val, nperseg=self.args.nperseg)
+        val_set = IQSegmentDataset(X_val, y_val, nperseg=self.spec.nperseg)
 
         # Define PyTorch Dataloaders
         train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True)

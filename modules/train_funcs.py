@@ -10,8 +10,10 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import metrics
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Optional
 import argparse
+import sys
+import os
 
 
 def net_train(log: Dict[str, Any],
@@ -25,6 +27,7 @@ def net_train(log: Dict[str, Any],
     net = net.train()
     # Statistics
     losses = []
+
     # Iterate through batches
     for features, targets in tqdm(dataloader):
         # Move features and targets to the proper device
@@ -47,6 +50,7 @@ def net_train(log: Dict[str, Any],
         loss.detach()
         # Get losses
         losses.append(loss.item())
+
     # Average loss
     loss = np.mean(losses)
     # Save Statistics
@@ -61,25 +65,27 @@ def net_eval(log: Dict,
             dataloader: DataLoader,
             device: torch.device):
     net = net.eval()
+
     with torch.no_grad():
         # Statistics
-        losses = []
-        prediction = []
-        ground_truth = []
-        # Batch Iteration
-        for features, targets in tqdm(dataloader):
-            # Move features and targets to the proper device
-            features = features.to(device)
-            targets = targets.to(device)
-            # Forward Propagation
-            out = net(features)
-            # Calculate loss function
-            loss = criterion(out, targets)
-            # Collect prediction and ground truth for metric calculation
-            prediction.append(out.cpu())
-            ground_truth.append(targets.cpu())
-            # Collect losses to calculate the average loss per epoch
-            losses.append(loss.item())
+            losses = []
+            prediction = []
+            ground_truth = []
+            # Batch Iteration
+            for features, targets in tqdm(dataloader):
+                # Move features and targets to the proper device
+                features = features.to(device)
+                targets = targets.to(device)
+                # Forward Propagation
+                out = net(features)
+                # Calculate loss function
+                loss = criterion(out, targets)
+                # Collect prediction and ground truth for metric calculation
+                prediction.append(out.cpu())
+                ground_truth.append(targets.cpu())
+                # Collect losses to calculate the average loss per epoch
+                losses.append(loss.item())
+    
     # Average loss
     loss = np.mean(losses)
     # Prediction and Ground Truth

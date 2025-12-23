@@ -201,33 +201,26 @@ def get_training_frames(segments, seq_len, stride=1):
 
 
 class IQSegmentDataset(Dataset):
-    def __init__(self, features, targets, nperseg=16384):
-        self.nperseg = nperseg
+    def __init__(self, features, targets, nperseg):
+        self.features = torch.Tensor(self.split_segments(features, nperseg))
+        self.targets = torch.Tensor(self.split_segments(targets, nperseg))
 
-        features = self.split_segments(features)
-        targets = self.split_segments(targets)
-        self.features = torch.Tensor(features)
-        self.targets = torch.Tensor(targets)
-
-    def split_segments(self, sequence):
-        num_samples = len(sequence)
+    @staticmethod
+    def split_segments(sequence, nperseg):
         segments = []
-        for i in range(0, num_samples, self.nperseg):
-            segment = sequence[i:i + self.nperseg]
+        sequence_length = len(sequence)
+        for i in range(0, sequence_length, nperseg):
+            segment = sequence[i:i + nperseg]
             segment = np.asarray(segment)
-            if segment.shape[0] < self.nperseg:
-                padding_shape = (self.nperseg - segment.shape[0], segment.shape[1])
+            if segment.shape[0] < nperseg:
+                padding_shape = (nperseg - segment.shape[0], segment.shape[1])
                 segment = np.vstack((segment, np.zeros(padding_shape, dtype=segment.dtype)))
             segments.append(segment)
         return np.array(segments)
-
     def __len__(self):
         return len(self.features)
-
     def __getitem__(self, idx):
-        features = self.features[idx, ...]
-        targets = self.targets[idx, ...]
-        return features, targets
+        return self.features[idx], self.targets[idx]
 
 
 class IQFrameDataset(Dataset):
@@ -237,17 +230,16 @@ class IQFrameDataset(Dataset):
         self.targets = torch.Tensor(self.get_frames(targets, frame_length, stride))
 
     @staticmethod
-    def get_frames(sequence, frame_length, stride_length):
-            frames = []
-            sequence_length = len(sequence)
-            num_frames = (sequence_length - frame_length) // stride_length + 1
-            for i in range(num_frames):
-                frame = sequence[i * stride_length: i * stride_length + frame_length]
-                frames.append(frame)
-            return np.stack(frames)
+    def get_frames(sequence, frame_length, stride):
+        frames = []
+        sequence_length = len(sequence)
+        num_frames = (sequence_length - frame_length) // stride + 1
+        for i in range(num_frames):
+            frame = sequence[i * stride: i * stride + frame_length]
+            frames.append(frame)
+        return np.stack(frames)
     def __len__(self):
         return len(self.features)
-
     def __getitem__(self, idx):
         return self.features[idx], self.targets[idx]
 

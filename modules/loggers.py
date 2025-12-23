@@ -16,8 +16,21 @@ class PandasLogger:
         self.path_file_log_hist = path_file_log_hist
         self.path_file_log_best = path_file_log_best
         self.path_file_terminal_log = path_file_terminal_log
+        self.list_log_headers = []
+        self.list_log_rows = []
         self.precision = precision
+        self.best_val_metric = None
         self.console = Console()
+
+    def add_row(self, list_header, list_value):
+        self.list_log_headers = list_header
+        row = {}
+        for header, value in zip(list_header, list_value):
+            row[header] = value
+        self.list_log_rows.append(row)
+        
+        # Create a rich table instead of just printing the row
+        self._display_stats_table(row)
 
     def _display_stats_table(self, stats):
         # Create two tables - one for general info and one for metrics
@@ -112,7 +125,7 @@ class PandasLogger:
             if logfile is not None:
                 df.to_csv(logfile, index=False)
             else:
-                df.to_csv(self.path_log_file_hist, index=False)
+                df.to_csv(self.path_file_log_hist, index=False)
 
     def write_log(self, log_stat):
         # Create Log List
@@ -148,7 +161,7 @@ class PandasLogger:
             if logfile is not None:
                 df.to_csv(logfile, index=False)
             else:
-                df.to_csv(self.path_log_file_hist, index=False)
+                df.to_csv(self.path_file_log_hist, index=False)
 
     def save_best_model(self, net, epoch, val_stat, metric_name='ACPR_AVG'):
         best_criteria = val_stat[metric_name]

@@ -10,7 +10,7 @@ from torch import nn
 
 class DeltaGRU(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers, thx=0, thh=0,
-                 bias=True):
+                bias=True):
         super(DeltaGRU, self).__init__()
         self.hidden_size = hidden_size
         self.input_size = 6
@@ -22,29 +22,29 @@ class DeltaGRU(nn.Module):
 
         # Instantiate NN Layers
         self.rnn =  DeltaGRULayer(input_size=self.input_size,
-                          hidden_size=self.hidden_size,
-                          num_layers=num_layers,
-                          thx=self.thx,
-                          thh=self.thh)
+                                    hidden_size=self.hidden_size,
+                                    num_layers=num_layers,
+                                    thx=self.thx,
+                                    thh=self.thh)
         self.fc_out = nn.Linear(in_features=self.hidden_size,
                                 out_features=self.output_size,
                                 bias=False)
         self.tcn = nn.Sequential(
             nn.Conv1d(in_channels=2,
-                      out_channels=3,
-                      kernel_size=3,
-                      padding=16,
-                      stride=1,
-                      dilation=16,
-                      bias=False),
+                    out_channels=3,
+                    kernel_size=3,
+                    padding=16,
+                    stride=1,
+                    dilation=16,
+                    bias=False),
             nn.Hardswish(),
             nn.Conv1d(in_channels=3,
-                      out_channels=2,
-                      kernel_size=1,
-                      padding=0,
-                      stride=1,
-                      dilation=1,
-                      bias=False),
+                    out_channels=2,
+                    kernel_size=1,
+                    padding=0,
+                    stride=1,
+                    dilation=1,
+                    bias=False),
             nn.Hardswish(),
         )
         self.set_debug(1)
@@ -128,11 +128,11 @@ class DeltaGRU(nn.Module):
 
 class DeltaGRULayer(nn.Module):
     def __init__(self,
-                 input_size=16,
-                 hidden_size=256,
-                 num_layers=1,
-                 thx=0.1,
-                 thh=0):
+                input_size=16,
+                hidden_size=256,
+                num_layers=1,
+                thx=0.1,
+                thh=0):
         super(DeltaGRULayer, self).__init__()
 
         # Hyperparameters
@@ -194,7 +194,7 @@ class DeltaGRULayer(nn.Module):
 
 
     def process_inputs_first(self, x: Tensor, x_p_0: Tensor = None, h_0: Tensor = None, h_p_0: Tensor = None,
-                       dm_ch_0: Tensor = None, dm_0: Tensor = None):
+                            dm_ch_0: Tensor = None, dm_0: Tensor = None):
         if self.batch_first:
             x = x.transpose(0, 1)
             setattr(self, 'batch_size', int(x.size()[0]))
@@ -242,7 +242,7 @@ class DeltaGRULayer(nn.Module):
         return dm, dm_r, dm_z, dm_n, dm_nh
 
     def layer_forward(self, input: Tensor, l: int, x_p_0: Tensor = None, h_0: Tensor = None,
-                      h_p_0: Tensor = None, dm_nh_0: Tensor = None, dm_0: Tensor = None):
+                        h_p_0: Tensor = None, dm_nh_0: Tensor = None, dm_0: Tensor = None):
 
         input_size = input.size(-1)
 
