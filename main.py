@@ -8,7 +8,7 @@ import sys
 # Prevent duplicate OpenMP runtime initialization on macOS (libomp vs. Apple's libomp)
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-from steps import train_pa, train_dpd, run_dpd
+from steps import train_pa, run_pa, train_dpd, run_dpd
 from project import Project
 
 
@@ -71,6 +71,13 @@ if __name__ == '__main__':
             print("# Step: Train PA                                                                                   #")
             print("####################################################################################################")
             train_pa.main(proj)
+
+        # PA Running
+        elif proj.step == 'run_pa':
+            print("####################################################################################################")
+            print("# Step: Run PA                                                                                     #")
+            print("####################################################################################################")
+            run_pa.main(proj)
 
         # DPD Learning
         elif proj.step == 'train_dpd':
