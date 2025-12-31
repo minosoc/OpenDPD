@@ -22,14 +22,16 @@ def net_train(log: Dict[str, Any],
                 optimizer: Optimizer,
                 dataloader: DataLoader,
                 grad_clip_val: float,
-                device: torch.device):
+                device: torch.device,
+                global_step: int = 0):
     # Set Network to Training Mode
     net = net.train()
     # Statistics
     losses = []
+    grad_norms = []
 
     # Iterate through batches
-    for features, targets in tqdm(dataloader):
+    for batch_idx, (features, targets) in enumerate(tqdm(dataloader)):
         # Move features and targets to the proper device
         features = features.to(device)
         targets = targets.to(device)
@@ -41,22 +43,40 @@ def net_train(log: Dict[str, Any],
         loss = criterion(out, targets)
         # Backward propagation
         loss.backward()
-        # Gradient clipping
+        
+        # Gradient clipping (especially important for Transformer)
         if grad_clip_val != 0:
-            nn.utils.clip_grad_norm_(net.parameters(), grad_clip_val)
+            # For Transformer, use smaller gradient clipping (typically 1.0)
+            # Check if this is a Transformer model
+            model_name = net.__class__.__name__.lower()
+            is_transformer = 'transformer' in model_name or hasattr(net, 'encoder_layers')
+            
+            if is_transformer and grad_clip_val > 10:
+                # Use smaller clipping for Transformer (1.0 is standard)
+                clip_value = 1.0
+            else:
+                clip_value = grad_clip_val
+            
+            grad_norm = nn.utils.clip_grad_norm_(net.parameters(), clip_value)
+            grad_norms.append(grad_norm.item())
+        
         # Update parameters
         optimizer.step()
         # Detach loss from the graph indicating the end of forward propagation
         loss.detach()
         # Get losses
         losses.append(loss.item())
+        global_step += 1
 
     # Average loss
     loss = np.mean(losses)
     # Save Statistics
     log['loss'] = loss
+    if grad_norms:
+        log['grad_norm'] = np.mean(grad_norms)
+        log['grad_norm_max'] = np.max(grad_norms)
     # End of Training Epoch
-    return net
+    return net, global_step
 
 
 def net_eval(log: Dict,

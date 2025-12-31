@@ -86,8 +86,7 @@ class TransformerEncoderLayer(nn.Module):
             nn.Linear(d_model, d_ff),
             nn.ReLU(),
             nn.Dropout(dropout_ff),
-            nn.Linear(d_ff, d_model),
-            nn.Dropout(dropout_ff)
+            nn.Linear(d_ff, d_model)
         )
         
         # Layer normalization
@@ -103,13 +102,15 @@ class TransformerEncoderLayer(nn.Module):
         Returns:
             Tensor of shape (batch_size, seq_len, d_model)
         """
-        # Self-attention with residual connection and layer norm
-        attn_out, _ = self.self_attn(x, x, x)
-        x = self.norm1(x + self.dropout(attn_out))
+        # Pre-norm: Self-attention with residual connection
+        # Apply layer norm before attention (Pre-norm is more stable)
+        attn_out, _ = self.self_attn(self.norm1(x), self.norm1(x), self.norm1(x))
+        x = x + self.dropout(attn_out)
         
-        # Feedforward with residual connection and layer norm
-        ff_out = self.feedforward(x)
-        x = self.norm2(x + ff_out)
+        # Pre-norm: Feedforward with residual connection
+        # Apply layer norm before feedforward
+        ff_out = self.feedforward(self.norm2(x))
+        x = x + ff_out
         
         return x
 
@@ -118,7 +119,8 @@ class TransformerEncoder(nn.Module):
     """Transformer encoder backbone for PA/DPD models"""
     
     def __init__(self, input_size, output_size, num_layers, d_model, 
-                n_heads=8, d_ff=2048, dropout_ff=0.1, dropout_attn=0.1, bias=True):
+                n_heads=8, d_ff=2048, dropout_ff=0.1, dropout_attn=0.1, bias=True,
+                use_mlp_embedding=True):
         super(TransformerEncoder, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
@@ -129,9 +131,24 @@ class TransformerEncoder(nn.Module):
         self.dropout_ff = dropout_ff
         self.dropout_attn = dropout_attn
         self.bias = bias
+        self.use_mlp_embedding = use_mlp_embedding
         
-        # Input embedding layer
-        self.input_embedding = nn.Linear(input_size, d_model, bias=bias)
+        # Input projection/embedding layer
+        # For continuous values (I, Q), this is more of a "projection" than "embedding"
+        # but we keep the name for consistency with Transformer terminology
+        if use_mlp_embedding:
+            # More expressive MLP-based embedding (better for complex patterns)
+            embedding_dim = max(d_model // 2, input_size * 4)
+            self.input_embedding = nn.Sequential(
+                nn.Linear(input_size, embedding_dim, bias=bias),
+                nn.LayerNorm(embedding_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout_ff),
+                nn.Linear(embedding_dim, d_model, bias=bias)
+            )
+        else:
+            # Simple linear projection (efficient, standard approach)
+            self.input_embedding = nn.Linear(input_size, d_model, bias=bias)
         
         # Sinusoidal positional encoding
         self.pos_encoding = SinusoidalPositionalEncoding(d_model)
@@ -146,11 +163,20 @@ class TransformerEncoder(nn.Module):
         self.output_projection = nn.Linear(d_model, output_size, bias=bias)
     
     def reset_parameters(self):
-        # """Initialize parameters"""
+        """Initialize parameters"""
         # Initialize input embedding
-        nn.init.xavier_uniform_(self.input_embedding.weight)
-        if self.input_embedding.bias is not None:
-            nn.init.constant_(self.input_embedding.bias, 0)
+        if isinstance(self.input_embedding, nn.Sequential):
+            # MLP-based embedding
+            for module in self.input_embedding:
+                if isinstance(module, nn.Linear):
+                    nn.init.xavier_uniform_(module.weight)
+                    if module.bias is not None:
+                        nn.init.constant_(module.bias, 0)
+        else:
+            # Simple linear embedding
+            nn.init.xavier_uniform_(self.input_embedding.weight)
+            if self.input_embedding.bias is not None:
+                nn.init.constant_(self.input_embedding.bias, 0)
         
         # Initialize encoder layers
         for layer in self.encoder_layers:

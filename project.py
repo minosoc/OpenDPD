@@ -285,15 +285,24 @@ class Project:
             raise AttributeError('Please use a valid loss function. Check argument.py.')
 
     def build_optimizer(self, net: nn.Module):
+        # Use weight_decay for Transformer models (important for regularization)
+        weight_decay = getattr(self, 'weight_decay', 0.01)
+        
+        # For Transformer models, use lower weight_decay if not specified
+        is_transformer = ('transformer' in getattr(self, 'PA_backbone', '').lower() or 
+                         'transformer' in getattr(self, 'DPD_backbone', '').lower())
+        if is_transformer and weight_decay == 0.01:  # Default value
+            weight_decay = 0.01  # Keep default, but ensure it's applied
+        
         # Optimizer
         if self.opt_type == 'adam':
-            optimizer = optim.Adam(net.parameters(), lr=self.lr)
+            optimizer = optim.Adam(net.parameters(), lr=self.lr, weight_decay=weight_decay)
         elif self.opt_type == 'sgd':
-            optimizer = optim.SGD(net.parameters(), lr=self.lr, momentum=0.9)
+            optimizer = optim.SGD(net.parameters(), lr=self.lr, momentum=0.9, weight_decay=weight_decay)
         elif self.opt_type == 'rmsprop':
-            optimizer = optim.RMSprop(net.parameters(), lr=self.lr)
+            optimizer = optim.RMSprop(net.parameters(), lr=self.lr, weight_decay=weight_decay)
         elif self.opt_type == 'adamw':
-            optimizer = optim.AdamW(net.parameters(), lr=self.lr)
+            optimizer = optim.AdamW(net.parameters(), lr=self.lr, weight_decay=weight_decay)
         elif self.opt_type == 'adabound':
             import adabound  # Run pip install adabound (https://github.com/Luolc/AdaBound)
             optimizer = adabound.AdaBound(net.parameters(), lr=self.lr, final_lr=0.1)
@@ -301,13 +310,34 @@ class Project:
             raise RuntimeError('Please use a valid optimizer.')
 
         # Learning Rate Scheduler
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
+        # For Transformer, use warmup if specified
+        warmup_steps = getattr(self, 'warmup_steps', 0)
+        if warmup_steps > 0:
+            # Create a warmup scheduler that will be combined with ReduceLROnPlateau
+            # We'll use a lambda function for warmup
+            def lr_lambda(step):
+                if step < warmup_steps:
+                    return float(step) / float(max(1, warmup_steps))
+                return 1.0
+            
+            # Use LambdaLR for warmup, then switch to ReduceLROnPlateau after warmup
+            warmup_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+            main_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
+                                                                mode='min',
+                                                                factor=self.decay_factor,
+                                                                patience=self.patience,
+                                                                threshold=1e-4,
+                                                                min_lr=self.lr_end)
+            # Store both schedulers
+            return optimizer, (warmup_scheduler, main_scheduler, warmup_steps)
+        else:
+            lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
                                                             mode='min',
                                                             factor=self.decay_factor,
                                                             patience=self.patience,
                                                             threshold=1e-4,
                                                             min_lr=self.lr_end)
-        return optimizer, lr_scheduler
+            return optimizer, lr_scheduler
 
     def train(  self,
                 net: nn.Module,
@@ -319,19 +349,34 @@ class Project:
                 best_model_metric: str) -> None:
         # Timer
         start_time = time.time()
+        
+        # Handle warmup scheduler
+        warmup_scheduler = None
+        main_scheduler = None
+        warmup_steps = 0
+        if isinstance(lr_scheduler, tuple) and len(lr_scheduler) == 3:
+            warmup_scheduler, main_scheduler, warmup_steps = lr_scheduler
+            lr_scheduler = main_scheduler  # Use main scheduler for ReduceLROnPlateau
+        
+        global_step = 0
         # Epoch loop
         print("Starting training...")
         for epoch in range(self.args.n_epochs):
             # -----------
             # Train
             # -----------
-            net = net_train(log=self.log_train,
+            net, global_step = net_train(log=self.log_train,
                             net=net,
                             criterion=criterion,
                             optimizer=optimizer,
                             dataloader=train_loader,
                             grad_clip_val=self.args.grad_clip_val,
-                            device=self.device)
+                            device=self.device,
+                            global_step=global_step)
+
+            # Apply warmup scheduler if active
+            if warmup_scheduler is not None and global_step <= warmup_steps:
+                warmup_scheduler.step()
 
             # -----------
             # Validation
@@ -364,9 +409,11 @@ class Project:
             # Learning Rate Schedule
             ###########################################################################################################
             # Schedule at the beginning of retrain
-            lr_scheduler_criteria = self.log_val[best_model_metric]
-            if self.args.lr_schedule:
-                lr_scheduler.step(lr_scheduler_criteria)
+            # Only apply ReduceLROnPlateau after warmup is complete
+            if warmup_scheduler is None or global_step > warmup_steps:
+                lr_scheduler_criteria = self.log_val[best_model_metric]
+                if self.args.lr_schedule:
+                    lr_scheduler.step(lr_scheduler_criteria)
 
         print("Training Completed...")
         print(" ")

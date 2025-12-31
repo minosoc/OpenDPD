@@ -45,10 +45,12 @@ def NMSE(prediction, ground_truth):
     q_hat = prediction[..., 1]
     q_true = ground_truth[..., 1]
 
-    MSE = np.mean(np.square(i_true - i_hat) + np.square(q_true - q_hat), axis=-1)
-    energy = np.mean(np.square(i_true) + np.square(q_true), axis=-1)
+    # Calculate MSE and energy over all samples (not per-sample)
+    MSE = np.mean(np.square(i_true - i_hat) + np.square(q_true - q_hat))
+    energy = np.mean(np.square(i_true) + np.square(q_true))
 
-    NMSE = np.mean(10 * np.log10(MSE / energy))
+    # Calculate NMSE in dB
+    NMSE = 10 * np.log10(MSE / energy)
     return NMSE
 
 

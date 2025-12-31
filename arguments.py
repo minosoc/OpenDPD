@@ -37,8 +37,10 @@ def get_arguments():
     parser.add_argument('--lr', default=5e-4, type=float, help='Learning rate')
     parser.add_argument('--lr_end', default=1e-4, type=float, help='Learning rate')
     parser.add_argument('--decay_factor', default=0.1, type=float, help='Learning rate')
-    parser.add_argument('--patience', default=10, type=float, help='Learning rate')
+    parser.add_argument('--patience', default=20, type=float, help='Learning rate')
     parser.add_argument('--grad_clip_val', default=200, type=float, help='Gradient clipping.')
+    parser.add_argument('--warmup_steps', default=0, type=int, help='Number of warmup steps for learning rate (0 to disable).')
+    parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay for optimizer (especially important for Transformer).')
     # GMP Hyperparameters
     parser.add_argument('--K', default=4, type=int, help='Degree of GMP model')
     # Power Amplifier Model Settings
