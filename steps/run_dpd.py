@@ -34,45 +34,11 @@ def main(proj: Project):
     # Load Dataset
     _, _, _, _, X_test, y_test = load_dataset(dataset_name=proj.dataset_name)
     
-    # Calculate target gain for evaluation using all data (train + val + test) for better estimation
+    # Calculate target gain for evaluation
     target_gain = getattr(proj.spec, 'gain', None)
     if target_gain is None:
         raise ValueError("'gain' is required in spec.json but not found. Please add 'gain' to your spec.json file.")
-    
-    # Handle normalized data: Calculate actual gain ratio from data if data appears normalized
-    X_magnitude = np.sqrt(X_test[:, 0]**2 + X_test[:, 1]**2)
-    valid_idx = X_magnitude > 0.01  # Filter out near-zero values
-    if np.any(valid_idx):
-        # Calculate what the gain ratio would be if we had output data
-        # For evaluation, we'll use the same logic as in build_dataloaders
-        max_input_mag = np.max(X_magnitude)
-        data_is_normalized = max_input_mag < 1.1
-        
-        normalization_scale = getattr(proj.spec, 'normalization_scale', None)
-        use_calculated_gain = getattr(proj.spec, 'use_calculated_gain', False)
-        
-        # If project has already computed effective_gain during training, use it
-        if hasattr(proj, 'target_gain'):
-            effective_gain = proj.target_gain
-            print(f"::: Using effective gain from training: {effective_gain:.6f}")
-        elif use_calculated_gain:
-            # Would need output data to calculate, but for consistency, estimate from typical normalized gain
-            # This is a fallback - ideally should match what was used in training
-            effective_gain = target_gain / 10.0 if data_is_normalized and target_gain > 5.0 else target_gain
-            print(f"::: Using estimated normalized gain: {effective_gain:.6f} (original: {target_gain:.6f})")
-        elif normalization_scale is not None and data_is_normalized:
-            effective_gain = target_gain / normalization_scale
-            print(f"::: Using normalized gain: {effective_gain:.6f} (original: {target_gain:.6f}, norm_scale: {normalization_scale:.6f})")
-        elif data_is_normalized and target_gain > 5.0:
-            # Estimate normalized gain (typically original_gain / max_input_scale)
-            effective_gain = target_gain / 10.0  # Rough estimate - should match training logic
-            print(f"::: Data appears normalized, using estimated gain: {effective_gain:.6f} (spec gain: {target_gain:.6f})")
-        else:
-            effective_gain = target_gain
-            print(f"::: Using gain from spec.json: {effective_gain:.6f}")
-        target_gain = effective_gain
-    else:
-        print(f"::: Target Gain: {target_gain:.6f}")
+    print(f"::: Target Gain: {target_gain:.6f}")
 
     ###########################################################################################################
     # Network Settings
@@ -167,7 +133,14 @@ def main(proj: Project):
         
         # Ground truth: ideal linear amplification (target_gain * input)
         # This is what DPD aims to achieve: make PA output linear amplification of input
+        # Normalize ideal output to match normalized output scale (same as training)
         ground_truth_ideal = target_gain * X_test
+        ideal_magnitude = np.sqrt(ground_truth_ideal[:, 0]**2 + ground_truth_ideal[:, 1]**2)
+        max_ideal_magnitude = ideal_magnitude.max()
+        
+        if max_ideal_magnitude > 0:
+            ground_truth_ideal = ground_truth_ideal / max_ideal_magnitude
+            print(f"::: Normalized ideal ground truth with max magnitude: {max_ideal_magnitude:.6f}")
         
         # Split data into segments for metric calculation (same as IQSegmentDataset)
         # Metrics expect shape (N_segments, nperseg, 2) instead of (N, 2)

@@ -1,0 +1,16 @@
+{
+    "dataset_format": "split_csv",
+    "split_ratios": {
+        "train": 0.6,
+        "val": 0.2,
+        "test": 0.2
+    },
+    "input_signal_fs": 983040000.0,
+    "bw_main_ch": 200000000.0,
+    "bw_sub_ch": 200000000.0,
+    "n_sub_ch": 10,
+    "nperseg": 19662,
+    "gain": 10.0,
+    "normalization_scale": 1.0,
+    "original_normalization_scale": 10.0
+}
