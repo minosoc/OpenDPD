@@ -1,3 +1,4 @@
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -6,8 +7,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # Load the file
-path = "./pa_out/rev21_APA_200MHz/PA_S_0_M_TRANSFORMER_ENCODER_D_128_H_4_L_1_P_207170.csv"
-df = pd.read_csv(path)
+# csv_path = "./pa_out/rev7_APA_200MHz/PA_S_0_M_DGRU_H_23_L_1_P_2751.csv"                             # rev7
+# csv_path = "./pa_out/rev21_APA_200MHz/PA_S_0_M_TRANSFORMER_ENCODER_D_128_H_4_L_1_P_207170.csv"    # rev21
+csv_path = "./pa_out/rev24_APA_200MHz/PA_S_0_M_TRANSFORMER_ENCODER_D_128_H_4_L_1_P_207170.csv"    # rev24
+# csv_path = "./pa_out/rev26_APA_200MHz/PA_S_0_M_TRANSFORMER_ENCODER_D_128_H_4_L_1_P_207170.csv"    # rev26
+df = pd.read_csv(csv_path)
 
 # Helper to compute AM-AM and AM-PM
 def compute_am_am_pm(Iin, Qin, Iout, Qout):
@@ -62,8 +66,9 @@ axes[1, 1].grid(True, alpha=0.3)
 
 plt.tight_layout()
 
-# 파일로 저장
-output_file = "./pa_out/rev21_APA_200MHz/am_am_pm_plots.png"
-plt.savefig(output_file, dpi=150, bbox_inches='tight')
-print(f"✓ Plots saved to: {output_file}")
+# CSV 파일과 같은 디렉토리에 PNG 파일로 저장
+csv_path_obj = Path(csv_path)
+output_path = csv_path_obj.parent / "am_am_pm_plots.png"
+fig.savefig(output_path, dpi=150, bbox_inches='tight')
+print(f"✓ Plots saved to: {output_path}")
 plt.close()

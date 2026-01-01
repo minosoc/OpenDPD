@@ -6,7 +6,7 @@ step="${1:-all}"
 
 # naming
 dataset_name=APA_200MHz
-version=rev22
+version=rev28
 
 # backbone settings
 PA_backbone=transformer_encoder
@@ -15,18 +15,18 @@ PA_num_layers=1
 DPD_backbone=transformer_encoder
 DPD_hidden_size=15
 DPD_num_layers=1
-d_model=1024
-n_heads=4
-d_ff=2048
+d_model=64
+n_heads=2
+d_ff=256
 dropout_ff=0.1
 dropout_attn=0.1
 thx=0.01
 thh=0.05
 
 # training settings
-devices=2
-n_epochs=100
-lr=3e-4
+devices=3
+n_epochs=2000
+lr=1e-3
 lr_schedule=1
 lr_end=1e-5
 decay_factor=0.5
