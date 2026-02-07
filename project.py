@@ -236,8 +236,25 @@ class Project:
         if self.target_gain is None:
             raise ValueError("'gain' is required in spec.json but not found. Please add 'gain' to your spec.json file.")
         if self.args.step == 'train_dpd':
-            y_train = self.target_gain * X_train        # G * x (ideal)
-            y_val = self.target_gain * X_val
+            # Calculate ideal output (input * target_gain)
+            y_train_ideal = self.target_gain * X_train        # G * x (ideal)
+            y_val_ideal = self.target_gain * X_val
+            
+            # Normalize ideal output to match normalized output scale (magnitude max = 1.0)
+            # This ensures training target is in the same scale as the normalized dataset
+            train_magnitude = np.sqrt(y_train_ideal[:, 0]**2 + y_train_ideal[:, 1]**2)
+            val_magnitude = np.sqrt(y_val_ideal[:, 0]**2 + y_val_ideal[:, 1]**2)
+            
+            # Use max magnitude across both train and val for consistent normalization
+            max_magnitude = max(train_magnitude.max(), val_magnitude.max())
+            
+            if max_magnitude > 0:
+                y_train = y_train_ideal / max_magnitude
+                y_val = y_val_ideal / max_magnitude
+                print(f"Normalized ideal output with max magnitude: {max_magnitude:.6f}")
+            else:
+                y_train = y_train_ideal
+                y_val = y_val_ideal
 
         # Extract Features
         input_size = X_train.shape[-1]
