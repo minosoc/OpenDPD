@@ -95,3 +95,11 @@ steps/__pycache__/
 PACKAGE_INSTALLATION.md
 PyPI.md
 adc/*
+# ===== LLM-basedDPD experiment policy: keep code + spec.json only =====
+results/
+logs/
+kiees_2026_summer/
+*.pt
+# generated pooled/LOO datasets: keep spec.json, exclude data
+datasets/GaN_combined/*.csv
+datasets/GaN_loo_*/*.csv

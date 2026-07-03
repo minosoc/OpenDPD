@@ -1,0 +1,19 @@
+{
+    "description": "Pooled GaN 7.5GHz (24/27dBm 20MHz @128 + 20/24dBm 100MHz @640), as-is (no resample). Mixed fs/bw -> NMSE is the primary combined metric; EVM/ACLR are evaluated per condition.",
+    "dataset_format": "split_csv",
+    "split_ratios": {
+        "train": 0.6,
+        "val": 0.2,
+        "test": 0.2
+    },
+    "input_signal_fs": 128000000.0,
+    "bw_main_ch": 20000000.0,
+    "n_sub_ch": 10,
+    "nperseg": 2048,
+    "pooled_conditions": [
+        "GaN_24dBm",
+        "GaN_27dBm",
+        "GaN_bw100_20dBm",
+        "GaN_bw100_24dBm"
+    ]
+}

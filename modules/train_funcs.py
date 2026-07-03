@@ -19,7 +19,9 @@ def net_train(log: Dict[str, Any],
               optimizer: Optimizer,
               criterion: Callable,
               grad_clip_val: float,
-              device: torch.device):
+              device: torch.device,
+              last_token_loss: bool = False,
+              lookahead: int = 0):
     # Set Network to Training Mode
     net = net.train()
     # Statistics
@@ -33,8 +35,12 @@ def net_train(log: Dict[str, Any],
         optimizer.zero_grad()
         # Forward Propagation
         out = net(features)
-        # Calculate the Loss Function
-        loss = criterion(out, targets)
+        # Calculate the Loss Function — optionally on a single token (causal or lookahead-shifted)
+        if last_token_loss:
+            pos = features.shape[1] - 1 - int(lookahead)
+            loss = criterion(out[:, pos:pos+1, :], targets[:, pos:pos+1, :])
+        else:
+            loss = criterion(out, targets)
         # Backward propagation
         loss.backward()
         # Gradient clipping

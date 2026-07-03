@@ -81,6 +81,36 @@ class Project:
         if 'delta' in self.DPD_backbone:
             dict_dpd['THX'] = f"{self.thx:.3f}"
             dict_dpd['THH'] = f"{self.thh:.3f}"
+        # Last-token loss flag (applies to any backbone)
+        if int(getattr(self.args, 'last_token_loss', 0)):
+            dict_dpd['LTL'] = '1'
+        # Lookahead (non-causal DPD): encode M when > 0
+        la = int(getattr(self.args, 'lookahead', 0))
+        if la > 0:
+            dict_dpd['LA'] = str(la)
+        # Encode PE flag for Transformer so attn / attn_pe don't share filenames.
+        if self.DPD_backbone == 'transformer':
+            dict_dpd['PE'] = '1' if int(getattr(self.args, 'use_pos_encoding', 0)) else '0'
+            # Encode advanced variant tags so distinct configs with same param count
+            # do NOT collide on disk (e.g., V0 vs local_attn vs n_heads=1 all = 488p).
+            rc = int(getattr(self.args, 'output_residual_concat', 0))
+            mh = int(getattr(self.args, 'input_mlp_hidden', 0))
+            csk = int(getattr(self.args, 'conv_stem_kernel', 0))
+            law = int(getattr(self.args, 'local_attn_window', 0))
+            nh = int(getattr(self.args, 'n_heads', 2))
+            if rc:           dict_dpd['RC'] = '1'
+            if mh > 0:       dict_dpd['MH'] = str(mh)
+            if csk > 0:      dict_dpd['CSK'] = str(csk)
+            if law > 0:      dict_dpd['LAW'] = str(law)
+            if nh != 2:      dict_dpd['NH'] = str(nh)
+            ffn = getattr(self.args, 'ffn_type', 'mlp')
+            if ffn != 'mlp':
+                dict_dpd['FFN'] = ffn.upper()
+            gmp_s = int(getattr(self.args, 'use_gmp_stem', 0))
+            if gmp_s:
+                dict_dpd['GMP'] = '1'
+                gsk = int(getattr(self.args, 'gmp_stem_kernel', 5))
+                dict_dpd['GSK'] = str(gsk)
         dict_dpdmodel_id = dict(list(dict_dpd.items()))
 
         # DPD Model ID
@@ -229,8 +259,14 @@ class Project:
 
         # Define PyTorch Datasets
         train_set = IQFrameDataset(X_train, y_train, frame_length=self.frame_length, stride=self.frame_stride)
-        val_set = IQSegmentDataset(X_val, y_val, nperseg=self.args.nperseg)
-        test_set = IQSegmentDataset(X_test, y_test, nperseg=self.args.nperseg)
+        # If --eval_match_train_len is set, val/test use the same length as train
+        # (needed for sequence-length sweeps with PE-using models like Transformer).
+        if getattr(self.args, 'eval_match_train_len', False):
+            nperseg_eval = self.frame_length
+        else:
+            nperseg_eval = self.args.nperseg
+        val_set = IQSegmentDataset(X_val, y_val, nperseg=nperseg_eval)
+        test_set = IQSegmentDataset(X_test, y_test, nperseg=nperseg_eval)
 
         # Define PyTorch Dataloaders
         train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True)
@@ -369,7 +405,9 @@ class Project:
                             criterion=criterion,
                             dataloader=train_loader,
                             grad_clip_val=self.grad_clip_val,
-                            device=self.device)
+                            device=self.device,
+                            last_token_loss=bool(getattr(self.args, 'last_token_loss', 0)),
+                            lookahead=int(getattr(self.args, 'lookahead', 0)))
 
             # -----------
             # Validation

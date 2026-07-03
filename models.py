@@ -8,7 +8,7 @@ from backbones.rvtdcnn import RVTDCNN
 
 
 class CoreModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, backbone_type, window_size=None, num_dvr_units=None, thx=0, thh=0):
+    def __init__(self, input_size, hidden_size, num_layers, backbone_type, window_size=None, num_dvr_units=None, thx=0, thh=0, n_heads=2, d_ff=18, use_pos_encoding=False, output_residual_concat=False, input_mlp_hidden=0, output_mlp_hidden=0, conv_stem_kernel=0, local_attn_window=0, ffn_type='mlp', use_gmp_stem=False, gmp_stem_kernel=5, mamba_d_state=4, mamba_d_conv=4, mamba_expand=2, mamba_dt_rank=0):
         super(CoreModel, self).__init__()
         self.output_size = 2  # PA outputs: I & Q
         self.input_size = input_size
@@ -19,6 +19,21 @@ class CoreModel(nn.Module):
         self.thh = thh
         self.window_size = window_size
         self.num_dvr_units = num_dvr_units
+        self.n_heads = n_heads
+        self.d_ff = d_ff
+        self.use_pos_encoding = use_pos_encoding
+        self.output_residual_concat = output_residual_concat
+        self.input_mlp_hidden = input_mlp_hidden
+        self.output_mlp_hidden = output_mlp_hidden
+        self.conv_stem_kernel = conv_stem_kernel
+        self.local_attn_window = local_attn_window
+        self.ffn_type = ffn_type
+        self.use_gmp_stem = use_gmp_stem
+        self.gmp_stem_kernel = gmp_stem_kernel
+        self.mamba_d_state = mamba_d_state
+        self.mamba_d_conv = mamba_d_conv
+        self.mamba_expand = mamba_expand
+        self.mamba_dt_rank = mamba_dt_rank
         self.batch_first = True  # Force batch first
         self.bidirectional = False
         self.bias = True
@@ -136,6 +151,35 @@ class CoreModel(nn.Module):
         elif backbone_type == 'mcldnn':
             from backbones.mcldnn import MCLDNN
             self.backbone = MCLDNN(hidden_size=self.hidden_size)
+        elif backbone_type == 'mamba':
+            from backbones.mamba import Mamba
+            self.backbone = Mamba(d_model=self.hidden_size,
+                                    d_state=int(getattr(self, 'mamba_d_state', 4)),
+                                    d_conv=int(getattr(self, 'mamba_d_conv', 4)),
+                                    expand=int(getattr(self, 'mamba_expand', 2)),
+                                    num_layers=self.num_layers,
+                                    dropout=0.0,
+                                    dt_rank=int(getattr(self, 'mamba_dt_rank', 0)),
+                                    bias=False)
+        elif backbone_type == 'transformer':
+            from backbones.transformer import Transformer
+            # Use hidden_size as d_model; n_heads / d_ff / num_layers tunable.
+            # Defaults give 488 params (≈ DGRU H=8: 486 params) for iso-param compare.
+            self.backbone = Transformer(d_model=self.hidden_size,
+                                          n_heads=getattr(self, 'n_heads', 2),
+                                          d_ff=getattr(self, 'd_ff', 18),
+                                          num_layers=self.num_layers,
+                                          dropout=0.0,
+                                          bias=self.bias,
+                                          use_pos_encoding=bool(getattr(self, 'use_pos_encoding', False)),
+                                          output_residual_concat=bool(getattr(self, 'output_residual_concat', False)),
+                                          input_mlp_hidden=int(getattr(self, 'input_mlp_hidden', 0)),
+                                          output_mlp_hidden=int(getattr(self, 'output_mlp_hidden', 0)),
+                                          conv_stem_kernel=int(getattr(self, 'conv_stem_kernel', 0)),
+                                          local_attn_window=int(getattr(self, 'local_attn_window', 0)),
+                                          ffn_type=getattr(self, 'ffn_type', 'mlp'),
+                                          use_gmp_stem=bool(getattr(self, 'use_gmp_stem', False)),
+                                          gmp_stem_kernel=int(getattr(self, 'gmp_stem_kernel', 5)))
         else:
             raise ValueError(f"The backbone type '{self.backbone_type}' is not supported. Please add your own "
                              f"backbone under ./backbones and update models.py accordingly.")

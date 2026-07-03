@@ -60,7 +60,8 @@ class DGRU(nn.Module):
         # Feature Extraction
         i_x = torch.unsqueeze(x[..., 0], dim=-1)
         q_x = torch.unsqueeze(x[..., 1], dim=-1)
-        amp2 = torch.pow(i_x, 2) + torch.pow(q_x, 2)
+        eps = 1e-12
+        amp2 = torch.pow(i_x, 2) + torch.pow(q_x, 2) + eps  # +eps inside sqrt → no NaN on padded zeros
         amp = torch.sqrt(amp2)
         amp3 = torch.pow(amp, 3)
         cos = i_x / amp

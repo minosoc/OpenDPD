@@ -44,7 +44,22 @@ def main(proj: Project):
     net_dpd = model.CoreModel(input_size=2,  # I and Q
                               hidden_size=proj.DPD_hidden_size,
                               num_layers=proj.DPD_num_layers,
-                              backbone_type=proj.DPD_backbone)
+                              backbone_type=proj.DPD_backbone,
+                              n_heads=getattr(proj, 'n_heads', 2),
+                              d_ff=getattr(proj, 'd_ff', 18),
+                              use_pos_encoding=bool(getattr(proj, 'use_pos_encoding', 0)),
+                              output_residual_concat=bool(getattr(proj, 'output_residual_concat', 0)),
+                              input_mlp_hidden=int(getattr(proj, 'input_mlp_hidden', 0)),
+                              output_mlp_hidden=int(getattr(proj, 'output_mlp_hidden', 0)),
+                              conv_stem_kernel=int(getattr(proj, 'conv_stem_kernel', 0)),
+                              local_attn_window=int(getattr(proj, 'local_attn_window', 0)),
+                              ffn_type=getattr(proj, 'ffn_type', 'mlp'),
+                              use_gmp_stem=bool(int(getattr(proj, 'use_gmp_stem', 0))),
+                              gmp_stem_kernel=int(getattr(proj, 'gmp_stem_kernel', 5)),
+                              mamba_d_state=int(getattr(proj, 'mamba_d_state', 4)),
+                              mamba_d_conv=int(getattr(proj, 'mamba_d_conv', 4)),
+                              mamba_expand=int(getattr(proj, 'mamba_expand', 2)),
+                              mamba_dt_rank=int(getattr(proj, 'mamba_dt_rank', 0)))
 
     net_dpd = get_quant_model(proj, net_dpd)
     
