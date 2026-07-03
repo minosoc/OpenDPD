@@ -96,7 +96,8 @@ PACKAGE_INSTALLATION.md
 PyPI.md
 adc/*
 # ===== LLM-basedDPD experiment policy: keep code + spec.json only =====
-results/
+results/*
+!results/rev11_loo_kernel/
 logs/
 kiees_2026_summer/
 *.pt
